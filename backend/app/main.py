@@ -14,6 +14,7 @@ from app.api.v1.execution import router as execution_router
 from app.api.v1.admin import router as admin_router
 from app.api.v1.settings import router as settings_router
 from app.api.v1.videos import router as videos_router
+from app.api.v1.dashboard import router as dashboard_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -38,6 +39,7 @@ app.mount("/uploads", StaticFiles(directory=settings.STORAGE_LOCAL_DIR), name="u
 # Mount Routers
 api_v1_prefix = settings.API_V1_STR
 app.include_router(auth_router, prefix=api_v1_prefix)
+app.include_router(dashboard_router, prefix=api_v1_prefix)
 app.include_router(courses_router, prefix=api_v1_prefix)
 app.include_router(lessons_router, prefix=api_v1_prefix)
 app.include_router(payments_router, prefix=api_v1_prefix)

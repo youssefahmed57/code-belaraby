@@ -242,3 +242,43 @@ async def test_production_local_runner_rejection():
 async def test_unauthorised_video_token_request(async_client: AsyncClient):
     res = await async_client.get("/api/v1/videos/token/demo_video_lesson_1")
     assert res.status_code == 401
+
+@pytest.mark.asyncio
+async def test_dashboard_summary_enrolment_filters_and_progress_isolation(async_client: AsyncClient):
+    # 1. Student 1 has exactly 1 active enrolment
+    s1_res = await async_client.post("/api/v1/auth/login", json={
+        "identifier": "01011111111",
+        "password": "StudentPass123!@#"
+    })
+    token1 = s1_res.json()["access_token"]
+    h1 = {"Authorization": f"Bearer {token1}"}
+
+    dash1 = await async_client.get("/api/v1/dashboard/summary", headers=h1)
+    assert dash1.status_code == 200
+    data1 = dash1.json()
+
+    assert data1["active_enrolment_count"] == len(data1["courses"])
+    assert data1["active_enrolment_count"] == 1
+    assert data1["courses"][0]["slug"] == "python-first-secondary"
+    # Unenrolled course is not in courses list
+    course_slugs1 = [c["slug"] for c in data1["courses"]]
+    assert "web-second-secondary-demo" not in course_slugs1
+
+    # Check suggested courses contains the demo course
+    suggested_slugs1 = [sc["slug"] for sc in data1["suggested_courses"]]
+    assert "web-second-secondary-demo" in suggested_slugs1
+
+    # 2. Student 3 has no enrolments
+    s3_res = await async_client.post("/api/v1/auth/login", json={
+        "identifier": "01033333333",
+        "password": "StudentPass123!@#"
+    })
+    token3 = s3_res.json()["access_token"]
+    h3 = {"Authorization": f"Bearer {token3}"}
+
+    dash3 = await async_client.get("/api/v1/dashboard/summary", headers=h3)
+    assert dash3.status_code == 200
+    data3 = dash3.json()
+    assert data3["active_enrolment_count"] == 0
+    assert len(data3["courses"]) == 0
+

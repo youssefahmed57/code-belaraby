@@ -1,9 +1,9 @@
 {
-  "total_pytest_tests": 14,
-  "passed_pytest_tests": 14,
+  "total_pytest_tests": 15,
+  "passed_pytest_tests": 15,
   "failed_pytest_tests": 0,
-  "total_playwright_tests": 27,
-  "passed_playwright_tests": 27,
+  "total_playwright_tests": 28,
+  "passed_playwright_tests": 28,
   "failed_playwright_tests": 0,
   "typescript_errors": 0,
   "nextjs_build_pages": 14,
