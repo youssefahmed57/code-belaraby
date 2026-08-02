@@ -1,0 +1,100 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { Phone, Lock, LogIn, AlertCircle } from "lucide-react";
+
+export default function LoginPage() {
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await api.post("/auth/login", { identifier, password });
+      const { access_token, user, role } = res.data;
+      
+      localStorage.setItem("access_token", access_token);
+      localStorage.setItem("user_info", JSON.stringify({ ...user, role }));
+
+      if (role === "admin" || role === "super_admin") {
+        window.location.href = "/admin";
+      } else {
+        window.location.href = "/dashboard";
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "فشل تسجيل الدخول. يرجى التأكد من البيانات والمحاولة مجدداً.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 glass-panel p-8 rounded-3xl border border-slate-800 shadow-2xl relative">
+        <div className="text-center">
+          <h2 className="text-3xl font-extrabold text-white">تسجيل الدخول</h2>
+          <p className="mt-2 text-sm text-slate-400">أهلاً بك مجدداً في منصة كود جيرني أكاديمي</p>
+        </div>
+
+        {error && (
+          <div className="p-4 rounded-xl bg-brand-red/10 border border-brand-red/30 text-brand-red text-sm flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-2">رقم الهاتف أو البريد الإلكتروني</label>
+              <div className="relative">
+                <input
+                  id="identifier"
+                  type="text"
+                  required
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="01011111111"
+                  className="w-full px-4 py-3 rounded-xl bg-navy-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-brand-blue transition-colors pl-10"
+                />
+                <Phone className="w-5 h-5 text-slate-500 absolute left-3 top-3.5" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-2">كلمة المرور</label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3 rounded-xl bg-navy-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-brand-blue transition-colors pl-10"
+                />
+                <Lock className="w-5 h-5 text-slate-500 absolute left-3 top-3.5" />
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-brand-blue to-cyan-500 hover:from-brand-blueHover hover:to-cyan-600 text-white font-bold text-base shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {loading ? "جاري التحقق..." : "دخول الحساب"}
+            <LogIn className="w-5 h-5" />
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}

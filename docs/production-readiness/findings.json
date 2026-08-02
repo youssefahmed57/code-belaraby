@@ -1,0 +1,42 @@
+[
+  {
+    "id": "RISK-01",
+    "category": "Code Execution Security",
+    "description": "Local Subprocess executor running in production environment",
+    "severity": "BLOCKER",
+    "status": "RESOLVED",
+    "remediation": "Enforced strict check in ExecutionService.run_code_sync throwing RuntimeError if ENVIRONMENT=production."
+  },
+  {
+    "id": "RISK-02",
+    "category": "Database Integrity",
+    "description": "Base.metadata.create_all bypassing Alembic schema migrations",
+    "severity": "CRITICAL",
+    "status": "RESOLVED",
+    "remediation": "Alembic 001_initial_schema.py represents full schema; seed script uses session data inserts."
+  },
+  {
+    "id": "RISK-03",
+    "category": "Authorization / RBAC",
+    "description": "Student attempting to access admin APIs or private receipt URLs",
+    "severity": "CRITICAL",
+    "status": "RESOLVED",
+    "remediation": "Enforced require_roles(['admin']) and student user_id matching on payments."
+  },
+  {
+    "id": "RISK-04",
+    "category": "Assessment Integrity",
+    "description": "Exposing quiz is_correct options in network response",
+    "severity": "CRITICAL",
+    "status": "RESOLVED",
+    "remediation": "start_quiz endpoint strips is_correct from question options payload."
+  },
+  {
+    "id": "RISK-05",
+    "category": "External Integrations",
+    "description": "Judge0 and Cloudflare Stream running with mock credentials",
+    "severity": "HIGH",
+    "status": "CONDITIONAL",
+    "remediation": "Documented as Pending Credentials; fallback adapters guarded for production."
+  }
+]

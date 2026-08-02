@@ -1,0 +1,85 @@
+name: code_journey_academy
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: code_journey_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: code_journey_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_secure_password_123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: code_journey_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: code_journey_backend
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres_secure_password_123@postgres:5432/code_journey_db
+      SYNC_DATABASE_URL: postgresql://postgres:postgres_secure_password_123@postgres:5432/code_journey_db
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: super_secret_jwt_key_change_in_production_2026
+      VIDEO_SECRET_KEY: super_secret_video_key_change_in_production_2026
+      JUDGE0_URL: http://judge0:2358
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - backend_uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: code_journey_frontend
+    restart: always
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  nginx:
+    image: nginx:alpine
+    container_name: code_journey_nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  postgres_data:
+  backend_uploads:
