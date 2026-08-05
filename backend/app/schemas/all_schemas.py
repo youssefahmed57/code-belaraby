@@ -170,6 +170,7 @@ class SubmitQuizRequest(BaseModel):
 class QuizAttemptResultResponse(BaseModel):
     attempt_id: str
     score: float
+    percentage: Optional[float] = 0.0
     passed: bool
-    correct_count: int
-    total_questions: int
+    correct_count: Optional[int] = 0
+    total_questions: Optional[int] = 0

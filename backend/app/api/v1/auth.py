@@ -20,7 +20,7 @@ async def register(
         raise HTTPException(status_code=400, detail="كلمات المرور غير متطابقة.")
 
     ip_addr = request.client.host if request.client else None
-    user, token = await register_student(
+    user, token, session_token = await register_student(
         db=db,
         arabic_name=req.arabic_name,
         phone_number=req.phone_number,
@@ -32,7 +32,7 @@ async def register(
         ip_address=ip_addr
     )
 
-    set_auth_cookies(response, token, user.id)
+    set_auth_cookies(response, token, session_token)
     return TokenResponse(
         access_token=token,
         user=UserResponse.model_validate(user).model_dump(),
@@ -73,3 +73,46 @@ async def logout(
     await logout_user(db, current_user.id, all_devices=False)
     clear_auth_cookies(response)
     return {"message": "تم تسجيل الخروج بنجاح."}
+
+@router.post("/logout-all")
+async def logout_all_devices(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    await logout_user(db, current_user.id, all_devices=True)
+    clear_auth_cookies(response)
+    return {"message": "تم تسجيل الخروج من جميع الأجهزة بنجاح."}
+
+@router.post("/forgot-password")
+async def forgot_password_endpoint(
+    payload: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    identifier = payload.get("identifier", "")
+    from app.services.auth_service import request_password_reset
+    raw_token = await request_password_reset(db, identifier)
+    # Generic security response regardless of whether identifier exists
+    return {
+        "message": "إذا كان البريد الإلكتروني أو رقم الهاتف مسجلاً لدينا، فستتم معالجة الطلب.",
+        "reset_token": raw_token # Exposed in dev environment for client reset flow
+    }
+
+@router.post("/reset-password")
+async def reset_password_endpoint(
+    payload: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    token = payload.get("token")
+    new_password = payload.get("new_password")
+    if not token or not new_password:
+        raise HTTPException(status_code=400, detail="الرمز وكلمة المرور الجديدة مطلوبان.")
+
+    from app.services.auth_service import reset_password_with_token
+    await reset_password_with_token(db, raw_token=token, new_password=new_password)
+    return {"message": "تم إعادة تعيين كلمة المرور بنجاح. يرجى تسجيل الدخول بكلمة المرور الجديدة."}
+
+@router.get("/me", response_model=UserResponse)
+async def get_me(current_user: User = Depends(get_current_user)):
+    return UserResponse.model_validate(current_user)
+

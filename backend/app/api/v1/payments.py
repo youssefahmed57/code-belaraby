@@ -1,5 +1,6 @@
 import os
 import uuid
+import hashlib
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,13 +42,35 @@ async def upload_receipt(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    import hashlib
+
     # Validate receipt file extension and MIME type
     filename = file.filename.lower() if file.filename else "receipt.png"
     ext = os.path.splitext(filename)[1]
-    if ext not in [".jpg", ".jpeg", ".png", ".pdf"]:
+    if ext not in [".jpg", ".jpeg", ".png", ".webp"]:
         raise HTTPException(
             status_code=400,
-            detail="نوع الملف غير مسموح به. يرجى رفع صورة بصيغة JPG أو PNG أو ملف PDF."
+            detail="نوع الملف غير مسموح به. يرجى رفع صورة بصيغة JPG أو PNG أو WebP فقط."
+        )
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail="حجم الإيصال يتجاوز الحد الأقصى المسموح به (5 ميجابايت)."
+        )
+
+    # Compute SHA-256 hash for duplicate receipt detection
+    r_hash = hashlib.sha256(contents).hexdigest()
+    stmt_dup = select(Payment).where(
+        Payment.receipt_hash == r_hash,
+        Payment.status.in_(["pending_review", "approved"])
+    )
+    res_dup = await db.execute(stmt_dup)
+    if res_dup.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="عفواً، تم استخدام صورة هذا الإيصال سابقاً في طلب آخر. يرجى التأكد من رفع الإيصال الصحيح."
         )
 
     # Save to local upload storage
@@ -56,7 +79,6 @@ async def upload_receipt(
     full_path = os.path.join(settings.STORAGE_LOCAL_DIR, file_key)
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
 
-    contents = await file.read()
     with open(full_path, "wb") as f:
         f.write(contents)
 
@@ -69,6 +91,12 @@ async def upload_receipt(
         amount_submitted=amount_submitted,
         student_note=student_note
     )
+
+    # Save hash
+    payment.receipt_hash = r_hash
+    await db.commit()
+    await db.refresh(payment)
+
     return PaymentResponse.model_validate(payment)
 
 @router.get("/my-payments", response_model=List[PaymentResponse])
@@ -111,3 +139,56 @@ async def admin_review_payment(
         rejection_reason=req.rejection_reason
     )
     return PaymentResponse.model_validate(payment)
+
+import time
+import hmac
+import base64
+
+def generate_signed_receipt_token(file_key: str, expires_in_seconds: int = 300) -> str:
+    exp = int(time.time()) + expires_in_seconds
+    data = f"{file_key}:{exp}"
+    signature = hmac.new(settings.SECRET_KEY.encode(), data.encode(), hashlib.sha256).hexdigest()
+    raw = f"{data}:{signature}"
+    return base64.urlsafe_b64encode(raw.encode()).decode()
+
+def verify_signed_receipt_token(token: str) -> str:
+    try:
+        raw = base64.urlsafe_b64decode(token.encode()).decode()
+        parts = raw.split(":")
+        if len(parts) != 3:
+            raise HTTPException(status_code=403, detail="رابط المعاينة غير صالح.")
+        file_key, exp_str, signature = parts[0], parts[1], parts[2]
+        exp = int(exp_str)
+        if time.time() > exp:
+            raise HTTPException(status_code=403, detail="انتهت صلاحية رابط المعاينة المؤقت.")
+        
+        expected_sig = hmac.new(settings.SECRET_KEY.encode(), f"{file_key}:{exp}".encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected_sig):
+            raise HTTPException(status_code=403, detail="تم التلاعب برابط المعاينة المؤقت.")
+        return file_key
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=403, detail="رمز التوقيع غير صالح.")
+
+@router.post("/admin/generate-preview-url")
+async def generate_preview_url(
+    file_key: str,
+    admin_user: User = Depends(require_roles(["admin", "super_admin"]))
+):
+    token = generate_signed_receipt_token(file_key, expires_in_seconds=300)
+    return {
+        "token": token,
+        "preview_url": f"/api/v1/payments/preview?token={token}",
+        "expires_in_seconds": 300
+    }
+
+@router.get("/preview")
+async def preview_signed_receipt(token: str):
+    from fastapi.responses import FileResponse
+    file_key = verify_signed_receipt_token(token)
+    full_path = os.path.join(settings.STORAGE_LOCAL_DIR, file_key)
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="ملف الإيصال غير موجود.")
+    return FileResponse(full_path, headers={"Cache-Control": "no-store, private"})
+

@@ -33,7 +33,7 @@ test.describe("Code Journey Academy - Full 10 E2E Production Scenarios", () => {
     await page.setInputFiles('input[type="file"]', {
       name: "receipt.png",
       mimeType: "image/png",
-      buffer: Buffer.from("fake receipt content")
+      buffer: Buffer.from("fake receipt content " + Date.now() + "_" + Math.random())
     });
     await page.click('button[type="submit"]');
     await expect(page.locator("body")).toContainText("تم رفع الإيصال بنجاح", { timeout: 15000 });

@@ -1,30 +1,39 @@
 name: code_journey_academy
 
+networks:
+  internal_net:
+    driver: bridge
+    internal: false
+
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15.6-alpine
     container_name: code_journey_postgres
     restart: always
     environment:
-      POSTGRES_DB: code_journey_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_secure_password_123
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-code_journey_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_password_123}
+    # Notice: NO ports section to prevent public exposure
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-code_journey_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine
     container_name: code_journey_redis
     restart: always
-    ports:
-      - "6379:6379"
+    # Notice: NO ports section to prevent public exposure
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal_net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -38,15 +47,18 @@ services:
     container_name: code_journey_backend
     restart: always
     environment:
-      ENVIRONMENT: production
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres_secure_password_123@postgres:5432/code_journey_db
-      SYNC_DATABASE_URL: postgresql://postgres:postgres_secure_password_123@postgres:5432/code_journey_db
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET_KEY: super_secret_jwt_key_change_in_production_2026
-      VIDEO_SECRET_KEY: super_secret_video_key_change_in_production_2026
-      JUDGE0_URL: http://judge0:2358
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      SECRET_KEY: ${SECRET_KEY}
+      CSRF_SECRET: ${CSRF_SECRET}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-codejourneyacademy.com}
+      SECURE_COOKIES: ${SECURE_COOKIES:-true}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      DATABASE_URL: ${DATABASE_URL}
+      SYNC_DATABASE_URL: ${SYNC_DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      ALLOW_LOCAL_RUNNER_IN_PROD: ${ALLOW_LOCAL_RUNNER_IN_PROD:-false}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,32 +66,55 @@ services:
         condition: service_healthy
     volumes:
       - backend_uploads:/app/uploads
+    networks:
+      - internal_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
-  frontend:
+  execution-worker:
     build:
-      context: ./frontend
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: code_journey_frontend
+    container_name: code_journey_execution_worker
+    restart: always
+    command: ["python", "app/worker.py"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      SECRET_KEY: ${SECRET_KEY}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      ALLOW_LOCAL_RUNNER_IN_PROD: ${ALLOW_LOCAL_RUNNER_IN_PROD:-false}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal_net
+
+  backup-worker:
+    image: postgres:15.6-alpine
+    container_name: code_journey_backup_worker
     restart: always
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-
-  nginx:
-    image: nginx:alpine
-    container_name: code_journey_nginx
-    restart: always
-    ports:
-      - "80:80"
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_password_123}
+      PGDATABASE: ${POSTGRES_DB:-code_journey_db}
+    entrypoint: ["sh", "-c", "while true; do sleep 86400; pg_dump -U $$PGUSER $$PGDATABASE > /backups/backup_$$(date +%Y%m%d_%H%M%S).sql; done"]
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - backups_data:/backups
     depends_on:
-      - frontend
-      - backend
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal_net
 
 volumes:
   postgres_data:
+  redis_data:
   backend_uploads:
+  backups_data:

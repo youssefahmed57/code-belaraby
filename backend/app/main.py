@@ -14,6 +14,7 @@ from app.api.v1.execution import router as execution_router
 from app.api.v1.admin import router as admin_router
 from app.api.v1.settings import router as settings_router
 from app.api.v1.videos import router as videos_router
+from app.api.v1.health import router as health_router
 from app.api.v1.dashboard import router as dashboard_router
 
 app = FastAPI(
@@ -48,6 +49,8 @@ app.include_router(execution_router, prefix=api_v1_prefix)
 app.include_router(admin_router, prefix=api_v1_prefix)
 app.include_router(settings_router, prefix=api_v1_prefix)
 app.include_router(videos_router, prefix=api_v1_prefix)
+app.include_router(health_router, prefix="")
+app.include_router(health_router, prefix=api_v1_prefix)
 
 @app.get("/health")
 async def health_check():

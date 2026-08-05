@@ -22,8 +22,11 @@ export default function AdminDashboardPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
 
+  const [unauthorized, setUnauthorized] = useState(false);
+
   const loadData = async () => {
     setLoading(true);
+    setUnauthorized(false);
     try {
       const [resM, resP, resS] = await Promise.all([
         api.get("/admin/metrics"),
@@ -33,7 +36,10 @@ export default function AdminDashboardPage() {
       setMetrics(resM.data);
       setPendingPayments(resP.data);
       setStudents(resS.data);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.response?.status === 403 || err?.response?.status === 401) {
+        setUnauthorized(true);
+      }
       console.error(err);
     } finally {
       setLoading(false);
@@ -65,12 +71,39 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handlePreviewReceipt = async (fileKey: string) => {
+    try {
+      const res = await api.post(`/payments/admin/generate-preview-url?file_key=${encodeURIComponent(fileKey)}`);
+      setSelectedReceipt(res.data.signed_url || `/api/v1/payments/preview?token=${res.data.token}`);
+    } catch {
+      setSelectedReceipt(`/api/v1/payments/preview?token=${fileKey}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-navy-900 text-white flex items-center justify-center">
         <div className="text-center space-y-3">
           <div className="w-12 h-12 border-4 border-brand-red border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-slate-400 text-sm">جاري فتح لوحة التحكم الإدارية...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (unauthorized) {
+    return (
+      <div className="min-h-screen bg-navy-900 text-white flex items-center justify-center p-4">
+        <div id="unauthorized_notice" className="max-w-md w-full p-8 rounded-3xl glass-panel border border-brand-red/40 text-center space-y-4">
+          <ShieldAlert className="w-16 h-16 text-brand-red mx-auto" />
+          <h2 className="text-2xl font-bold text-white">غير مصرح بالدخول</h2>
+          <p className="text-slate-400 text-sm">عفواً، هذه الصفحة مخصصة للإدارة فقط ولا يملك حسابك الصلاحية لدخولها.</p>
+          <Link
+            href="/dashboard"
+            className="inline-block px-6 py-3 rounded-xl bg-brand-blue hover:bg-blue-600 font-bold text-white transition-colors"
+          >
+            العودة للوحة التحكم
+          </Link>
         </div>
       </div>
     );
@@ -193,7 +226,7 @@ export default function AdminDashboardPage() {
                     <td className="p-4">
                       {p.receipt_file_key ? (
                         <button
-                          onClick={() => setSelectedReceipt(`http://localhost:8000/uploads/${p.receipt_file_key}`)}
+                          onClick={() => handlePreviewReceipt(p.receipt_file_key)}
                           className="px-3 py-1.5 rounded-lg bg-navy-800 hover:bg-navy-700 text-cyan-400 border border-slate-700 flex items-center gap-1 font-bold"
                         >
                           <Eye className="w-3.5 h-3.5" />

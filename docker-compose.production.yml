@@ -1,0 +1,15 @@
+name: code_journey_academy_production
+
+services:
+  backend:
+    environment:
+      ENVIRONMENT: production
+      COOKIE_DOMAIN: codejourneyacademy.com
+      ALLOWED_ORIGINS: '["https://codejourneyacademy.com"]'
+      SECURE_COOKIES: "true"
+      ALLOW_LOCAL_RUNNER_IN_PROD: "false"
+
+  execution-worker:
+    environment:
+      ENVIRONMENT: production
+      ALLOW_LOCAL_RUNNER_IN_PROD: "false"

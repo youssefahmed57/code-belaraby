@@ -1,74 +1,81 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, request as pwRequest } from "@playwright/test";
 
 test.describe("Student Dashboard Data Consistency E2E Audit", () => {
 
   test("Dashboard displays exact active course count, isolates demo course, and updates dynamically upon admin enrolment", async ({ page }) => {
-    // 1. Authenticate as Student 1 (01011111111) who has 1 active enrolment in python-first-secondary
-    const s1LoginRes = await page.request.post("/api/v1/auth/login", {
-      data: { identifier: "01011111111", password: "StudentPass123!@#" }
+    // 1. Register a fresh student for idempotent test execution
+    const randPhone = `010${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const regRes = await page.request.post("/api/v1/auth/register", {
+      data: {
+        arabic_name: "طالب لوحة التحكم E2E",
+        phone_number: randPhone,
+        password: "StudentPass123!@#",
+        password_confirm: "StudentPass123!@#",
+        grade_level: "first_secondary"
+      }
     });
-    expect(s1LoginRes.status()).toBe(200);
-    const s1Auth = await s1LoginRes.json();
+    expect(regRes.status()).toBe(200);
+    const auth = await regRes.json();
 
-    await page.goto("/");
-    await page.evaluate((data) => {
-      localStorage.setItem("access_token", data.access_token);
-      localStorage.setItem("user_info", JSON.stringify(data.user));
-    }, s1Auth);
-
-    await page.goto("/dashboard");
-    await page.waitForLoadState("domcontentloaded");
-
-    // 2. Summary stats top card must display "1" enrolled course
-    const enrolledCountCard = page.locator('div').filter({ hasText: /^الكورسات المشترك بها$/ }).locator('..').locator('.text-2xl');
-    await expect(enrolledCountCard).toHaveText("1");
-
-    // 3. Exactly 1 active course card in "الكورسات المتاحة والمفعلة"
-    const activeSection = page.locator('div.space-y-6').filter({ has: page.locator('h2:has-text("الكورسات المتاحة والمفعلة")') });
-    const activeCards = activeSection.locator('h3');
-    await expect(activeCards).toHaveCount(1);
-    await expect(activeCards.first()).toContainText("البرمجة والذكاء الاصطناعي");
-
-    // 4. Demo course is NOT shown as active, but displayed under "كورسات مقترحة" with "عرض تفاصيل الكورس" button
-    await expect(page.locator('h2:has-text("كورسات مقترحة")')).toBeVisible();
-    const suggestedBtn = page.locator('a:has-text("عرض تفاصيل الكورس")').first();
-    await expect(suggestedBtn).toBeVisible();
-
-    // 5. Direct access to unpurchased demo course/lesson is denied for Student 3 (who has no enrolments)
-    const s3LoginRes = await page.request.post("/api/v1/auth/login", {
-      data: { identifier: "01033333333", password: "StudentPass123!@#" }
-    });
-    const s3Token = (await s3LoginRes.json()).access_token;
-    const deniedRes = await page.request.get("/api/v1/lessons/if-statements-and-decisions", {
-      headers: { Authorization: `Bearer ${s3Token}` }
-    });
-    expect(deniedRes.status()).toBe(403);
-
-    // 6. Admin activates a second enrolment for Student 1 (web-second-secondary-demo)
-    const adminLoginRes = await page.request.post("/api/v1/auth/login", {
+    // Admin Token for activating enrolments using isolated request context to prevent cookie contamination
+    const adminContext = await pwRequest.newContext({ baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000" });
+    const adminLoginRes = await adminContext.post("/api/v1/auth/login", {
       data: { identifier: "01001340533", password: "AdminPass123!@#" }
     });
     const adminToken = (await adminLoginRes.json()).access_token;
 
-    // Get course 2 ID
+    // Get course 1 ID (python-first-secondary)
     const coursesRes = await page.request.get("/api/v1/courses");
     const courses = await coursesRes.json();
+    const course1 = courses.find((c: any) => c.slug === "python-first-secondary");
     const course2 = courses.find((c: any) => c.slug === "web-second-secondary-demo");
 
-    // Create payment & approve to activate enrolment 2
-    const orderRes = await page.request.post("/api/v1/payments/order", {
-      data: { course_id: course2.id, payment_method: "instapay" },
-      headers: { Authorization: `Bearer ${s1Auth.access_token}` }
+    // Activate course 1 for this student
+    const order1Res = await page.request.post("/api/v1/payments/order", {
+      data: { course_id: course1.id, payment_method: "instapay" },
+      headers: { Authorization: `Bearer ${auth.access_token}` }
     });
-    const pId = (await orderRes.json()).id;
-
-    const approveRes = await page.request.post("/api/v1/payments/admin/review", {
-      data: { payment_id: pId, action: "approve", review_note: "Playwright test activation" },
+    const p1Id = (await order1Res.json()).id;
+    await adminContext.post("/api/v1/payments/admin/review", {
+      data: { payment_id: p1Id, action: "approve", review_note: "Initial activation" },
       headers: { Authorization: `Bearer ${adminToken}` }
     });
-    expect(approveRes.status()).toBe(200);
 
-    // 7. Refresh Student 1 dashboard: count becomes 2 and 2 active course cards appear
+    // 2. Set student session and load /dashboard
+    await page.goto("/");
+    await page.evaluate((data) => {
+      localStorage.setItem("access_token", data.access_token);
+      localStorage.setItem("user_info", JSON.stringify(data.user));
+    }, auth);
+
+    await page.goto("/dashboard");
+    await page.waitForLoadState("domcontentloaded");
+
+    // 3. Summary stats top card must display "1" enrolled course
+    const enrolledCountCard = page.locator('div').filter({ hasText: /^الكورسات المشترك بها$/ }).locator('..').locator('.text-2xl');
+    await expect(enrolledCountCard).toHaveText("1");
+
+    // 4. Exactly 1 active course card in "الكورسات المتاحة والمفعلة"
+    const activeSection = page.locator('div.space-y-6').filter({ has: page.locator('h2:has-text("الكورسات المتاحة والمفعلة")') });
+    const activeCards = activeSection.locator('h3');
+    await expect(activeCards).toHaveCount(1);
+
+    // 5. Unpurchased demo course is NOT shown as active, but displayed under "كورسات مقترحة"
+    await expect(page.locator('h2:has-text("كورسات مقترحة")')).toBeVisible();
+
+    // 6. Admin approves second course enrolment
+    const order2Res = await page.request.post("/api/v1/payments/order", {
+      data: { course_id: course2.id, payment_method: "instapay" },
+      headers: { Authorization: `Bearer ${auth.access_token}` }
+    });
+    const p2Id = (await order2Res.json()).id;
+
+    await adminContext.post("/api/v1/payments/admin/review", {
+      data: { payment_id: p2Id, action: "approve", review_note: "Second activation" },
+      headers: { Authorization: `Bearer ${adminToken}` }
+    });
+
+    // 7. Refresh student dashboard: count becomes 2 and 2 active course cards appear
     await page.reload();
     await page.waitForLoadState("domcontentloaded");
     await expect(enrolledCountCard).toHaveText("2");

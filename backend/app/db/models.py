@@ -23,6 +23,10 @@ class User(Base):
     parent_phone = Column(String(50), nullable=True)
     status = Column(String(50), default="active", nullable=False) # pending, active, suspended, disabled
     avatar_url = Column(Text, nullable=True)
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime, nullable=True)
+    xp_points = Column(Integer, default=0, nullable=False)
+    level = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -112,6 +116,7 @@ class Course(Base):
     learning_outcomes = Column(JSON, default=list)
     status = Column(String(50), default="published", nullable=False) # draft, published, archived
     visibility = Column(String(50), default="public", nullable=False) # public, private
+    unlock_mode = Column(String(50), default="sequential", nullable=False) # sequential, open
     access_duration_days = Column(Integer, default=365)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -249,6 +254,7 @@ class Payment(Base):
     payment_method = Column(String(50), nullable=False) # instapay, vodafone_cash, whatsapp
     sender_identifier = Column(String(100), nullable=True)
     receipt_file_key = Column(String(500), nullable=True)
+    receipt_hash = Column(String(64), index=True, nullable=True)
     student_note = Column(Text, nullable=True)
     reviewer_id = Column(String(36), ForeignKey("users.id"), nullable=True)
     review_note = Column(Text, nullable=True)
@@ -623,6 +629,16 @@ class AuditLog(Base):
     ip_address = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+from sqlalchemy import event
+
+@event.listens_for(AuditLog, "before_update")
+def block_audit_log_update(mapper, connection, target):
+    raise PermissionError("جدول سجل العمليات (Audit Logs) غير قابل للتعديل (Immutable).")
+
+@event.listens_for(AuditLog, "before_delete")
+def block_audit_log_delete(mapper, connection, target):
+    raise PermissionError("جدول سجل العمليات (Audit Logs) غير قابل للمسح (Immutable).")
+
 class PlatformSettings(Base):
     __tablename__ = "platform_settings"
 
@@ -641,3 +657,101 @@ class AdminNote(Base):
     author_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     note = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class Certificate(Base):
+    __tablename__ = "certificates"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    certificate_code = Column(String(100), unique=True, index=True, nullable=False)
+    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    course_id = Column(String(36), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    issued_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    completion_grade = Column(Float, default=100.0, nullable=False)
+    student_name_arabic = Column(String(255), nullable=False)
+    course_title_arabic = Column(String(255), nullable=False)
+    qr_code_url = Column(Text, nullable=True)
+
+    student = relationship("User")
+    course = relationship("Course")
+
+class Coupon(Base):
+    __tablename__ = "coupons"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    code = Column(String(50), unique=True, index=True, nullable=False)
+    discount_type = Column(String(20), default="percentage", nullable=False) # percentage, fixed
+    discount_value = Column(Float, nullable=False) # e.g. 20.0 for 20% or 50.0 for 50 LE
+    start_date = Column(DateTime, default=datetime.utcnow, nullable=False)
+    end_date = Column(DateTime, nullable=True)
+    max_uses = Column(Integer, default=100, nullable=False)
+    current_uses = Column(Integer, default=0, nullable=False)
+    course_id = Column(String(36), ForeignKey("courses.id", ondelete="CASCADE"), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class CouponUsage(Base):
+    __tablename__ = "coupon_usages"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    coupon_id = Column(String(36), ForeignKey("coupons.id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    payment_id = Column(String(36), ForeignKey("payments.id"), nullable=True)
+    discount_amount = Column(Float, nullable=False)
+    used_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("coupon_id", "student_id", name="uq_coupon_student_usage"),
+    )
+
+class Badge(Base):
+    __tablename__ = "badges"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    code = Column(String(50), unique=True, index=True, nullable=False)
+    title_arabic = Column(String(255), nullable=False)
+    description_arabic = Column(Text, nullable=False)
+    icon_name = Column(String(100), default="Award")
+    xp_reward = Column(Integer, default=50)
+
+class UserBadge(Base):
+    __tablename__ = "user_badges"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    badge_id = Column(String(36), ForeignKey("badges.id", ondelete="CASCADE"), nullable=False)
+    unlocked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "badge_id", name="uq_user_badge"),
+    )
+
+class Assignment(Base):
+    __tablename__ = "assignments"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    course_id = Column(String(36), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    module_id = Column(String(36), ForeignKey("modules.id"), nullable=True)
+    lesson_id = Column(String(36), ForeignKey("lessons.id"), nullable=True)
+    due_date = Column(DateTime, nullable=True)
+    max_score = Column(Float, default=100.0)
+    rubric = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class AssignmentSubmission(Base):
+    __tablename__ = "assignment_submissions"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    assignment_id = Column(String(36), ForeignKey("assignments.id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    submission_text = Column(Text, nullable=True)
+    github_url = Column(Text, nullable=True)
+    file_key = Column(String(500), nullable=True)
+    status = Column(String(50), default="submitted") # submitted, graded, resubmit_requested
+    score = Column(Float, nullable=True)
+    instructor_feedback = Column(Text, nullable=True)
+    graded_by_id = Column(String(36), ForeignKey("users.id"), nullable=True)
+    submitted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    graded_at = Column(DateTime, nullable=True)
+

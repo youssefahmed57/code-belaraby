@@ -1,0 +1,15 @@
+name: code_journey_academy_staging
+
+services:
+  backend:
+    environment:
+      ENVIRONMENT: staging
+      COOKIE_DOMAIN: staging.codejourneyacademy.com
+      ALLOWED_ORIGINS: '["https://staging.codejourneyacademy.com"]'
+      SECURE_COOKIES: "true"
+      ALLOW_LOCAL_RUNNER_IN_PROD: "true"
+
+  execution-worker:
+    environment:
+      ENVIRONMENT: staging
+      ALLOW_LOCAL_RUNNER_IN_PROD: "true"

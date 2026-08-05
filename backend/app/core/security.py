@@ -72,6 +72,15 @@ def set_auth_cookies(response: Response, access_token: str, session_id: str):
         secure=settings.SECURE_COOKIES,
         domain=settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN != "localhost" else None
     )
+    response.set_cookie(
+        key="session_token",
+        value=session_id,
+        httponly=True,
+        max_age=60 * 60 * 24 * 7,
+        expires=60 * 60 * 24 * 7,
+        samesite="lax",
+        secure=settings.SECURE_COOKIES
+    )
     
     csrf_token = generate_csrf_token(session_id)
     response.set_cookie(
@@ -86,4 +95,5 @@ def set_auth_cookies(response: Response, access_token: str, session_id: str):
 
 def clear_auth_cookies(response: Response):
     response.delete_cookie("access_token")
+    response.delete_cookie("session_token")
     response.delete_cookie("csrf_token")

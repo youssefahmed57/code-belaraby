@@ -45,6 +45,21 @@ async def get_current_user(
             detail="الحساب غير محدد أو تم تعطيله."
         )
 
+    # Check active session revocation if session token provided
+    session_token = request.cookies.get("session_token") or request.headers.get("X-Session-Token")
+    if session_token:
+        stmt_sess = select(UserSession).where(
+            UserSession.user_id == user.id,
+            UserSession.session_token == session_token,
+            UserSession.is_active == True
+        )
+        res_sess = await db.execute(stmt_sess)
+        if not res_sess.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="تم إلغاء هذه الجلسة أو تسجيل الخروج من الأجهزة الأخرى."
+            )
+
     return user
 
 def require_roles(allowed_roles: List[str]):
