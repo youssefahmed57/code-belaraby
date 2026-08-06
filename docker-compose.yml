@@ -50,7 +50,7 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       SECRET_KEY: ${SECRET_KEY}
       CSRF_SECRET: ${CSRF_SECRET}
-      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-codejourneyacademy.com}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-yourdomain.com}
       SECURE_COOKIES: ${SECURE_COOKIES:-true}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       DATABASE_URL: ${DATABASE_URL}

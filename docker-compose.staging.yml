@@ -4,8 +4,8 @@ services:
   backend:
     environment:
       ENVIRONMENT: staging
-      COOKIE_DOMAIN: staging.codejourneyacademy.com
-      ALLOWED_ORIGINS: '["https://staging.codejourneyacademy.com"]'
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-STAGING_FRONTEND_DOMAIN}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-'["https://STAGING_FRONTEND_DOMAIN"]'}
       SECURE_COOKIES: "true"
       ALLOW_LOCAL_RUNNER_IN_PROD: "false"
 

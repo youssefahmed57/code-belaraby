@@ -6,25 +6,31 @@
 
 ## 📋 المتطلبات والبيئة المستهدفة
 
-* **Domain (الواجهة الأمامية)**: `staging.codejourneyacademy.com` (مستضافة على Vercel).
-* **API Domain (الواجهة الخلفية)**: `api-staging.codejourneyacademy.com` (مستضافة على الـ VPS).
+* **Domain (الواجهة الأمامية)**: `STAGING_FRONTEND_DOMAIN` (مستضافة على Vercel).
+* **API Domain (الواجهة الخلفية)**: `STAGING_API_DOMAIN` (مستضافة على الـ VPS).
 * **النظام الشغال**: Ubuntu 22.04 / 24.04 LTS.
 * **المكونات الداخلية**: Docker Compose, PostgreSQL 15.6, Redis 7.2, FastAPI Backend, Nginx Proxy.
 
 ---
 
-## 🛠️ الخطوة 1: تثبيت المتطلبات الأساسية على الـ VPS
+## 🛡️ توضيح أمني هام بخصوص معالج الأكواد (Code Playground Sandbox)
 
-قم بتسجيل الدخول إلى سيرفر الـ VPS عبر SSH وتنفيذ الأوامر التالية لتحديث النظام وتثبيت Docker و Nginx و Certbot:
+بناءً على التكوين الأمني المعين لبيئة Staging (`ALLOW_LOCAL_RUNNER_IN_PROD=false`):
+* محرر الأكواد في منصة الطالب لن يسمح بتشغيل الأكواد محلياً عبر `subprocess` مباشر لحماية سيرفر Staging المتاح على الإنترنت من أي تعليمات ضارة.
+* محاولة تشغيل الكود ستُرجع خطأ `RuntimeError: Local subprocess code execution is disabled in production environment for security`.
+* **هذا سلوك أمني مقصود وليس خطأ برمجياً**. لتشغيل الأكواد في Staging مستقبلاً، يتم ربط خدمة **Judge0 Sandbox** معزولة عبر تزويد متغير `JUDGE0_URL`.
+
+---
+
+## 🛠️ الخطوة 1: تثبيت المتطلبات الأساسية و Docker Engine على الـ VPS
+
+قم بتسجيل الدخول إلى سيرفر الـ VPS عبر SSH وتنفيذ الأوامر التالية بالترتيب لتثبيت Docker Engine رسمياً من مستودع Docker و Nginx:
 
 ```bash
-# 1. تحديث حزم النظام
-sudo apt update && sudo apt upgrade -y
+# 1. تحديث حزم النظام وتثبيت المتطلبات الأساسية
+sudo apt update && sudo apt install -y ca-certificates curl gnupg lsb-release git nginx certbot python3-certbot-nginx
 
-# 2. تثبيت الحزم الأساسية و Git و Nginx و Certbot
-sudo apt install -y curl git ca-certificates gnupg lsb-release nginx certbot python3-certbot-nginx
-
-# 3. تثبيت Docker و Docker Compose V2
+# 2. إضافة مفتاح ومستودع Docker الرسمي على Ubuntu
 sudo mkdir -p /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 
@@ -32,10 +38,11 @@ echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
   $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
+# 3. تثبيت Docker Engine وحزم Docker Compose V2 الرسمية
 sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# 4. التأكد من تشغيل خدمة Docker
+# 4. تفعيل وتشغيل خدمة Docker بعد اكتمال التثبيت
 sudo systemctl enable --now docker
 docker --version
 docker compose version
@@ -113,7 +120,7 @@ cp .env.staging.example .env.staging
 nano .env.staging
 ```
 
-قم بتعديل قيم القيم التالية بكلمات مرور وأسرار عشوائية جديدة:
+قم بتعديل قيم المتغيرات التالية بكلمات مرور وأسرار عشوائية جديدة:
 * `SECRET_KEY`: قيمة عشوائية (32 حرفاً على الأقل).
 * `CSRF_SECRET`: قيمة عشوائية (32 حرفاً على الأقل).
 * `POSTGRES_PASSWORD`: كلمة مرور قوية لقاعدة البيانات.
@@ -121,6 +128,7 @@ nano .env.staging
 * `INSTRUCTOR_DEFAULT_PASSWORD`: كلمة مرور جديدة لحساب Instructor.
 * `STUDENT_DEFAULT_PASSWORD`: كلمة مرور جديدة لحسابات الطلاب.
 * `ALLOW_LOCAL_RUNNER_IN_PROD=false` (تأكيد معالج الأمان).
+* `RUN_SEED=false` (اتركه false لمنع إعادة التأسيس وتوليد حسابات جديدة إلا عند الحاجة الأولى فقط).
 
 ---
 
@@ -136,12 +144,14 @@ docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file .e
 
 ---
 
-## 🗄️ الخطوة 6: تشغيل ترحيلات قاعدة البيانات (Alembic Migrations) و البيانات الأولية (Seed)
+## 🗄️ الخطوة 6: تشغيل ترحيلات قاعدة البيانات (Alembic Migrations)
 
 ```bash
-# تشغيل Alembic وتعبئة البيانات لمرة واحدة فقط لمنع التعارض تزامناً
+# تشغيل Alembic لمرة واحدة فقط لإنشاء الجداول والتحديثات
 docker compose -f docker-compose.yml -f docker-compose.staging.yml exec -T backend python -m alembic upgrade head
-docker compose -f docker-compose.yml -f docker-compose.staging.yml exec -T backend python app/db/seed.py
+
+# اختياري (لأول نشر فقط إن رغبت في تعبئة البيانات التجريبية الأولية):
+# docker compose -f docker-compose.yml -f docker-compose.staging.yml exec -T backend python app/db/seed.py
 ```
 
 ---
@@ -149,7 +159,7 @@ docker compose -f docker-compose.yml -f docker-compose.staging.yml exec -T backe
 ## 🔍 الخطوة 7: مراجعة سجلات الحاويات (Logs Audit)
 
 ```bash
-# عرض سجلات جميع الخدمات التأكد من عدم وجود أخطاء في التشغيل
+# عرض سجلات جميع الخدمات للتأكد من عدم وجود أخطاء في التشغيل
 docker compose -f docker-compose.yml -f docker-compose.staging.yml logs -f --tail=50
 ```
 
@@ -158,11 +168,14 @@ docker compose -f docker-compose.yml -f docker-compose.staging.yml logs -f --tai
 
 ---
 
-## 🌐 الخطوة 8: إعداد Nginx وإصدار شهادة SSL
+## 🌐 الخطوة 8: إعداد Nginx وإصدار شهادة SSL (عند تجهيز الـ DNS)
+
+بعد توجيه A Record الخاص بـ `STAGING_API_DOMAIN` إلى IP سيرفر الـ VPS:
 
 ```bash
-# 1. نسخ إعدادات Nginx من المشروع
+# 1. نسخ وتعديل اسم الدومين في ملف Nginx
 sudo cp deploy/nginx/staging.conf /etc/nginx/sites-available/staging.conf
+sudo sed -i 's/STAGING_API_DOMAIN/api-staging.yourdomain.com/g' /etc/nginx/sites-available/staging.conf
 sudo ln -sf /etc/nginx/sites-available/staging.conf /etc/nginx/sites-enabled/
 
 # 2. فحص سلامة إعدادات Nginx
@@ -171,25 +184,20 @@ sudo nginx -t
 # 3. إعادة تحميل Nginx
 sudo systemctl reload nginx
 
-# 4. إصدار شهادة SSL أوتوماتيكياً للنطاق api-staging.codejourneyacademy.com
-sudo certbot --nginx -d api-staging.codejourneyacademy.com --non-interactive --agree-tos -m admin@codejourneyacademy.com
+# 4. إصدار شهادة SSL يدويًا بعد التأكد من توجيه الدومين للـ VPS IP
+sudo certbot --nginx -d api-staging.yourdomain.com
 ```
 
 ---
 
 ## 🧪 الخطوة 9: تشغيل اختبارات الدخان (Staging Smoke Tests)
 
-يمكنك تشغيل اختبارات Smoke محلياً أو من السيرفر للتأكد من استجابة النظام:
+يمكنك تشغيل اختبارات Smoke للتأكد من استجابة النظام:
 
 ```bash
-# فحص استجابة Health و Ready Probes
-curl -i https://api-staging.codejourneyacademy.com/api/v1/health
-curl -i https://api-staging.codejourneyacademy.com/api/v1/ready
-```
-
-أو تشغيل حزمة Playwright Smoke Tests محلياً باستعراض النطاق:
-```bash
-PLAYWRIGHT_BASE_URL=https://staging.codejourneyacademy.com npx playwright test tests/staging_smoke.spec.ts
+# فحص استجابة Health و Ready Probes على الـ VPS
+curl -i http://127.0.0.1:8000/api/v1/health
+curl -i http://127.0.0.1:8000/api/v1/ready
 ```
 
 ---
@@ -199,7 +207,7 @@ PLAYWRIGHT_BASE_URL=https://staging.codejourneyacademy.com npx playwright test t
 عند وجود خلل غير متوقع بعد النشر:
 
 ```bash
-# 1. التراجع إلى الـ Commit السلس السابق
+# 1. التراجع إلى الـ Commit السابق
 cd /opt/code-belaraby/app
 git checkout HEAD~1
 
