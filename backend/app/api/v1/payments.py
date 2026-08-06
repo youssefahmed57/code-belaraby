@@ -15,6 +15,7 @@ from app.services.payment_service import (
 )
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
+from app.services.storage_service import StorageService, generate_signed_receipt_token, verify_signed_receipt_token
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
@@ -60,6 +61,17 @@ async def upload_receipt(
             detail="حجم الإيصال يتجاوز الحد الأقصى المسموح به (5 ميجابايت)."
         )
 
+    # Validate Magic Bytes
+    is_jpeg = contents[:3] == b"\xff\xd8\xff"
+    is_png = contents[:8] == b"\x89PNG\r\n\x1a\n"
+    is_webp = contents[:4] == b"RIFF" and contents[8:12] == b"WEBP"
+
+    if not (is_jpeg or is_png or is_webp):
+        raise HTTPException(
+            status_code=400,
+            detail="محتوى الملف غير صالح ولا يطابق صيغ الصور المسموح بها (Magic Bytes Mismatch)."
+        )
+
     # Compute SHA-256 hash for duplicate receipt detection
     r_hash = hashlib.sha256(contents).hexdigest()
     stmt_dup = select(Payment).where(
@@ -73,14 +85,10 @@ async def upload_receipt(
             detail="عفواً، تم استخدام صورة هذا الإيصال سابقاً في طلب آخر. يرجى التأكد من رفع الإيصال الصحيح."
         )
 
-    # Save to local upload storage
-    os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
+    # Upload to Supabase Storage (or local storage fallback)
     file_key = f"receipts/{uuid.uuid4().hex}{ext}"
-    full_path = os.path.join(settings.STORAGE_LOCAL_DIR, file_key)
-    os.makedirs(os.path.dirname(full_path), exist_ok=True)
-
-    with open(full_path, "wb") as f:
-        f.write(contents)
+    content_type = file.content_type if file.content_type else "image/png"
+    await StorageService.upload_file(contents, file_key, content_type)
 
     payment = await submit_payment_receipt(
         db=db,
@@ -140,55 +148,23 @@ async def admin_review_payment(
     )
     return PaymentResponse.model_validate(payment)
 
-import time
-import hmac
-import base64
-
-def generate_signed_receipt_token(file_key: str, expires_in_seconds: int = 300) -> str:
-    exp = int(time.time()) + expires_in_seconds
-    data = f"{file_key}:{exp}"
-    signature = hmac.new(settings.SECRET_KEY.encode(), data.encode(), hashlib.sha256).hexdigest()
-    raw = f"{data}:{signature}"
-    return base64.urlsafe_b64encode(raw.encode()).decode()
-
-def verify_signed_receipt_token(token: str) -> str:
-    try:
-        raw = base64.urlsafe_b64decode(token.encode()).decode()
-        parts = raw.split(":")
-        if len(parts) != 3:
-            raise HTTPException(status_code=403, detail="رابط المعاينة غير صالح.")
-        file_key, exp_str, signature = parts[0], parts[1], parts[2]
-        exp = int(exp_str)
-        if time.time() > exp:
-            raise HTTPException(status_code=403, detail="انتهت صلاحية رابط المعاينة المؤقت.")
-        
-        expected_sig = hmac.new(settings.SECRET_KEY.encode(), f"{file_key}:{exp}".encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(signature, expected_sig):
-            raise HTTPException(status_code=403, detail="تم التلاعب برابط المعاينة المؤقت.")
-        return file_key
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=403, detail="رمز التوقيع غير صالح.")
-
 @router.post("/admin/generate-preview-url")
 async def generate_preview_url(
     file_key: str,
     admin_user: User = Depends(require_roles(["admin", "super_admin"]))
 ):
+    preview_url = await StorageService.generate_signed_url(file_key, expires_in_seconds=300)
     token = generate_signed_receipt_token(file_key, expires_in_seconds=300)
     return {
         "token": token,
-        "preview_url": f"/api/v1/payments/preview?token={token}",
+        "preview_url": preview_url,
         "expires_in_seconds": 300
     }
 
 @router.get("/preview")
 async def preview_signed_receipt(token: str):
-    from fastapi.responses import FileResponse
+    from fastapi.responses import Response
     file_key = verify_signed_receipt_token(token)
-    full_path = os.path.join(settings.STORAGE_LOCAL_DIR, file_key)
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="ملف الإيصال غير موجود.")
-    return FileResponse(full_path, headers={"Cache-Control": "no-store, private"})
+    file_bytes = await StorageService.get_file_bytes(file_key)
+    return Response(content=file_bytes, media_type="image/png", headers={"Cache-Control": "no-store, private"})
 

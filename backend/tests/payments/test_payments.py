@@ -93,3 +93,33 @@ async def test_receipt_file_extension_restriction_jpeg_png_webp(async_client: As
     res = await async_client.post("/api/v1/payments/upload-receipt", data=data, files=files, headers=headers)
     assert res.status_code == 400
     assert "نوع الملف غير مسموح به" in res.json()["detail"]
+
+@pytest.mark.asyncio
+async def test_receipt_magic_bytes_validation_and_token_expiry(async_client: AsyncClient):
+    from app.services.storage_service import generate_signed_receipt_token, verify_signed_receipt_token
+    from fastapi import HTTPException
+
+    student_res = await async_client.post("/api/v1/auth/login", json={
+        "identifier": "01011111111",
+        "password": "StudentPass123!@#"
+    })
+    token = student_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Invalid Magic Bytes (PNG extension with invalid text content)
+    invalid_files = {"file": ("receipt.png", b"NOT_A_REAL_IMAGE_HEADER_BYTES", "image/png")}
+    data = {
+        "payment_id": "dummy_id",
+        "sender_identifier": "01011111111",
+        "amount_submitted": "350"
+    }
+    res = await async_client.post("/api/v1/payments/upload-receipt", data=data, files=invalid_files, headers=headers)
+    assert res.status_code == 400
+    assert "Magic Bytes Mismatch" in res.json()["detail"]
+
+    # 2. Expired signed token verification throws 403
+    expired_token = generate_signed_receipt_token("receipts/test.png", expires_in_seconds=-10)
+    with pytest.raises(HTTPException) as exc_info:
+        verify_signed_receipt_token(expired_token)
+    assert exc_info.value.status_code == 403
+    assert "انتهت صلاحية" in exc_info.value.detail

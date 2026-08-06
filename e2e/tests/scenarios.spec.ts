@@ -32,8 +32,10 @@ test.describe("Code Journey Academy - Full 10 E2E Production Scenarios", () => {
     await page.fill('input[placeholder="مثال: 01011111111 أو username@instapay"]', "01022222222");
     await page.setInputFiles('input[type="file"]', {
       name: "receipt.png",
-      mimeType: "image/png",
-      buffer: Buffer.from("fake receipt content " + Date.now() + "_" + Math.random())
+      buffer: Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        Buffer.from("fake receipt content " + Date.now() + "_" + Math.random())
+      ])
     });
     await page.click('button[type="submit"]');
     await expect(page.locator("body")).toContainText("تم رفع الإيصال بنجاح", { timeout: 15000 });

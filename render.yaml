@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: code-belaraby-backend-staging
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: chmod +x ../scripts/render_start.sh && ../scripts/render_start.sh
+    envVars:
+      - key: ENVIRONMENT
+        value: staging
+      - key: DEBUG
+        value: "false"
+      - key: ALLOW_LOCAL_RUNNER_IN_PROD
+        value: "false"
+      - key: RUN_SEED
+        value: "false"

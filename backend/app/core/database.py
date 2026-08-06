@@ -7,6 +7,8 @@ from app.core.config import settings
 engine_kwargs = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
+elif "asyncpg" in settings.DATABASE_URL:
+    engine_kwargs["connect_args"] = {"prepared_statement_cache_size": 0}
 
 async_engine = create_async_engine(
     settings.DATABASE_URL,

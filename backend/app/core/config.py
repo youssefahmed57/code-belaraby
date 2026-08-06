@@ -42,8 +42,15 @@ class Settings(BaseSettings):
     CLOUDFLARE_STREAM_PEM_KEY: str = "mock_cf_pem_key"
     USE_MOCK_VIDEO_PROVIDER: bool = True
 
+    # Supabase Storage & Database
+    SUPABASE_URL: Union[str, None] = None
+    SUPABASE_SERVICE_ROLE_KEY: Union[str, None] = None
+    SUPABASE_STORAGE_BUCKET: str = "payment-receipts"
+    SIGNED_URL_SECRET: str = Field("default_signed_url_secret_32_characters_long", env="SIGNED_URL_SECRET")
+    RUN_SEED: bool = False
+
     # Storage
-    STORAGE_PROVIDER: str = "local"
+    STORAGE_PROVIDER: str = "supabase"
     STORAGE_LOCAL_DIR: str = "./uploads"
     S3_ENDPOINT_URL: str = "https://mock.r2.cloudflarestorage.com"
     S3_ACCESS_KEY_ID: str = "mock_access_key"
