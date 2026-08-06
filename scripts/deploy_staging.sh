@@ -14,8 +14,9 @@ git pull origin staging
 echo "[2/4] Building and starting Staging containers..."
 docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file .env.staging up -d --build --remove-orphans
 
-echo "[3/4] Running DB Migrations..."
+echo "[3/4] Running DB Migrations and Seeding..."
 docker compose -f docker-compose.yml -f docker-compose.staging.yml exec -T backend python -m alembic upgrade head
+docker compose -f docker-compose.yml -f docker-compose.staging.yml exec -T backend python app/db/seed.py
 
 echo "[4/4] Verifying health and readiness..."
 sleep 5

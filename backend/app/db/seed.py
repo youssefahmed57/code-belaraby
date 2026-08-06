@@ -72,6 +72,7 @@ def seed_db():
             session.add(UserRole(user_id=super_admin_user.id, role_id=role_objs["instructor"].id))
             session.commit()
         else:
+            super_admin_user.hashed_password = get_password_hash(admin_pass)
             super_admin_user.failed_login_attempts = 0
             super_admin_user.locked_until = None
             session.commit()
@@ -93,6 +94,7 @@ def seed_db():
             session.add(UserRole(user_id=instructor_user.id, role_id=role_objs["instructor"].id))
             session.commit()
         else:
+            instructor_user.hashed_password = get_password_hash(instructor_pass)
             instructor_user.failed_login_attempts = 0
             instructor_user.locked_until = None
             session.commit()
@@ -116,6 +118,7 @@ def seed_db():
             session.add(UserRole(user_id=student1.id, role_id=role_objs["student"].id))
             session.commit()
         else:
+            student1.hashed_password = get_password_hash(student_pass)
             student1.failed_login_attempts = 0
             student1.locked_until = None
             session.commit()
@@ -137,6 +140,7 @@ def seed_db():
             session.add(UserRole(user_id=student2.id, role_id=role_objs["student"].id))
             session.commit()
         else:
+            student2.hashed_password = get_password_hash(student_pass)
             student2.failed_login_attempts = 0
             student2.locked_until = None
             session.commit()
@@ -158,6 +162,7 @@ def seed_db():
             session.add(UserRole(user_id=student3.id, role_id=role_objs["student"].id))
             session.commit()
         else:
+            student3.hashed_password = get_password_hash(student_pass)
             student3.failed_login_attempts = 0
             student3.locked_until = None
             session.commit()
