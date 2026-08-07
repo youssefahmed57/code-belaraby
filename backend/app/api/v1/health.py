@@ -1,3 +1,4 @@
+import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -82,3 +83,57 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)):
         status_report["status"] = "degraded"
 
     return status_report
+
+@router.get("/status/public")
+async def public_status_page(db: AsyncSession = Depends(get_db)):
+    import redis
+    import time
+    from app.core.config import settings
+
+    start_time = time.time()
+
+    # 1. DB latency check
+    db_ok = False
+    try:
+        res = await db.execute(text("SELECT 1"))
+        db_ok = (res.scalar() == 1)
+    except Exception:
+        db_ok = False
+
+    db_latency_ms = round((time.time() - start_time) * 1000, 2)
+
+    # 2. Redis check
+    redis_ok = False
+    try:
+        r = redis.Redis.from_url(settings.REDIS_URL, socket_timeout=2.0)
+        redis_ok = r.ping()
+    except Exception:
+        redis_ok = False
+
+    overall_operational = db_ok and redis_ok
+
+    return {
+        "platform_name": "كود بالعربي (Code Belaraby)",
+        "status": "operational" if overall_operational else "degraded_performance",
+        "last_updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "services": [
+            {
+                "name": "الواجهة البرمجية (API Services)",
+                "status": "operational" if overall_operational else "degraded",
+                "latency_ms": db_latency_ms
+            },
+            {
+                "name": "محرر ومحرك التنفيذ (Execution Engine)",
+                "status": "operational" if not settings.ALLOW_LOCAL_RUNNER_IN_PROD else "disabled_in_staging",
+                "message": "تشغيل الأكواد معطل مؤقتاً لدواعي الأمان في بيئة التجربة" if not settings.ALLOW_LOCAL_RUNNER_IN_PROD else "جاهز"
+            },
+            {
+                "name": "قاعدة البيانات (PostgreSQL Database)",
+                "status": "operational" if db_ok else "outage"
+            },
+            {
+                "name": "الذاكرة السريعة وطابور المهام (Redis Cache & Queue)",
+                "status": "operational" if redis_ok else "outage"
+            }
+        ]
+    }
