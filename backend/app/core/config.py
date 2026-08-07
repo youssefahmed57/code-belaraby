@@ -26,6 +26,27 @@ class Settings(BaseSettings):
     SYNC_DATABASE_URL: str = "sqlite:///./code_journey.db"
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 40
+
+    @validator("DATABASE_URL", pre=True, always=True)
+    def ensure_async_db_url(cls, v):
+        db_url = v or os.getenv("DATABASE_URL") or "sqlite+aiosqlite:///./code_journey.db"
+        if db_url.startswith("postgresql://"):
+            return db_url.replace("postgresql://", "postgresql+asyncpg://")
+        return db_url
+
+    @validator("SYNC_DATABASE_URL", pre=True, always=True)
+    def set_sync_db_url(cls, v, values):
+        db_url = values.get("DATABASE_URL") or os.getenv("DATABASE_URL")
+        if db_url:
+            if db_url.startswith("postgresql+asyncpg://"):
+                return db_url.replace("postgresql+asyncpg://", "postgresql://")
+            elif db_url.startswith("postgresql://"):
+                return db_url
+            elif db_url.startswith("sqlite+aiosqlite://"):
+                return db_url.replace("sqlite+aiosqlite://", "sqlite://")
+            return db_url
+        return v or "sqlite:///./code_journey.db"
+
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
