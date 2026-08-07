@@ -17,12 +17,25 @@ from app.api.v1.videos import router as videos_router
 from app.api.v1.health import router as health_router
 from app.api.v1.dashboard import router as dashboard_router
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        from app.db.seed import seed_db
+        seed_db()
+    except Exception as e:
+        print("Auto seed notice:", e)
+    yield
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url=f"{settings.API_V1_STR}/docs",
-    redoc_url=f"{settings.API_V1_STR}/redoc"
+    redoc_url=f"{settings.API_V1_STR}/redoc",
+    lifespan=lifespan
 )
+
 
 # CORS
 app.add_middleware(
