@@ -1,15 +1,18 @@
 import gradio as gr
-import uvicorn
-from app.main import app as fastapi_app
 
-demo = gr.Interface(
-    fn=lambda name: f"Hello {name}, Code Belaraby FastAPI is Online!",
-    inputs="text",
-    outputs="text",
-    title="Code Belaraby API"
-)
+try:
+    from app.main import app as fastapi_app
+    status_msg = "✅ FastAPI loaded successfully!"
+except Exception as e:
+    fastapi_app = None
+    status_msg = f"❌ Error loading FastAPI: {str(e)}"
 
-app = gr.mount_gradio_app(fastapi_app, demo, path="/gradio")
+with gr.Blocks(title="Code Belaraby API") as demo:
+    gr.Markdown("# 🚀 منصة كود بالعربي - Backend API Server")
+    gr.Markdown(status_msg)
+
+if fastapi_app is not None:
+    app = gr.mount_gradio_app(fastapi_app, demo, path="/gradio")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    demo.launch()
