@@ -13,5 +13,3 @@ argon2-cffi>=23.1.0
 python-multipart>=0.0.9
 httpx>=0.26.0
 redis>=5.0.0
-huggingface_hub==0.22.2
-gradio>=4.38.0
