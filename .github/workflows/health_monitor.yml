@@ -1,0 +1,31 @@
+name: Automated Health & Telegram Alert Monitor
+
+on:
+  schedule:
+    # Runs every 10 minutes (cron syntax)
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install httpx
+
+      - name: Run Telegram Health Monitor Script
+        env:
+          STAGING_HEALTH_URL: "https://code-belaraby-backend-staging.onrender.com/api/v1/health/detailed"
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python scripts/telegram_alert.py

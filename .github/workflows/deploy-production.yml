@@ -1,0 +1,38 @@
+name: Deploy Production to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: SSH Deploy to VPS Production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            echo "=== 1. Navigating to project directory ==="
+            cd /root/code-belaraby || cd /var/www/code-belaraby || exit 1
+
+            echo "=== 2. Pulling latest code from main branch ==="
+            git checkout main
+            git pull origin main
+
+            echo "=== 3. Rebuilding & restarting production Docker containers ==="
+            docker compose -f docker-compose.production.yml up -d --build --remove-orphans
+
+            echo "=== 4. Cleaning up unused Docker images ==="
+            docker image prune -f
+
+            echo "=== Deployment Successful! ==="
