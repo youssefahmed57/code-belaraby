@@ -1,11 +1,15 @@
 import gradio as gr
+import uvicorn
 from app.main import app as fastapi_app
 
-with gr.Blocks(title="كود بالعربي - API Server") as demo:
-    gr.Markdown("# 🚀 منصة كود بالعربي - Backend API Server")
-    gr.Markdown("الخادم الخارجي يعمل بكفاءة تامة وتواصل مباشر مع واجهة Vercel/Netlify وقاعدة البيانات.")
+demo = gr.Interface(
+    fn=lambda name: f"Hello {name}, Code Belaraby FastAPI is Online!",
+    inputs="text",
+    outputs="text",
+    title="Code Belaraby API"
+)
 
 app = gr.mount_gradio_app(fastapi_app, demo, path="/gradio")
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    uvicorn.run(app, host="0.0.0.0", port=7860)
