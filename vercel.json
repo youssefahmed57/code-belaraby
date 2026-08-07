@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/v1/:path*",
-      "destination": "https://STAGING_API_DOMAIN/api/v1/:path*"
+      "destination": "https://code-belaraby-backend-staging.onrender.com/api/v1/:path*"
     }
   ]
 }

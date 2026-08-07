@@ -7,8 +7,13 @@ from app.core.config import settings
 engine_kwargs = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
-elif "asyncpg" in settings.DATABASE_URL:
-    engine_kwargs["connect_args"] = {"prepared_statement_cache_size": 0}
+else:
+    engine_kwargs["pool_size"] = settings.DB_POOL_SIZE
+    engine_kwargs["max_overflow"] = settings.DB_MAX_OVERFLOW
+    engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs["pool_recycle"] = 3600
+    if "asyncpg" in settings.DATABASE_URL:
+        engine_kwargs["connect_args"] = {"prepared_statement_cache_size": 0}
 
 async_engine = create_async_engine(
     settings.DATABASE_URL,
@@ -29,6 +34,11 @@ AsyncSessionLocal = async_sessionmaker(
 sync_engine_kwargs = {}
 if settings.SYNC_DATABASE_URL.startswith("sqlite"):
     sync_engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    sync_engine_kwargs["pool_size"] = settings.DB_POOL_SIZE
+    sync_engine_kwargs["max_overflow"] = settings.DB_MAX_OVERFLOW
+    sync_engine_kwargs["pool_pre_ping"] = True
+    sync_engine_kwargs["pool_recycle"] = 3600
 
 sync_engine = create_engine(
     settings.SYNC_DATABASE_URL,

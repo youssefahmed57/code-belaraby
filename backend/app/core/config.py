@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./code_journey.db"
     SYNC_DATABASE_URL: str = "sqlite:///./code_journey.db"
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 40
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

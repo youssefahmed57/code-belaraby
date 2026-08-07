@@ -1,16 +1,59 @@
 services:
+  # 1. Web Service (FastAPI API Server)
   - type: web
     name: code-belaraby-backend-staging
     env: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: chmod +x ../scripts/render_start.sh && ../scripts/render_start.sh
+    healthCheckPath: /health
     envVars:
       - key: ENVIRONMENT
         value: staging
       - key: DEBUG
         value: "false"
+      - key: SECRET_KEY
+        value: your_secret_key_32_chars # استبدل هذا بمفتاح سري عشوائي (openssl rand -hex 32)
+      - key: CSRF_SECRET
+        value: your_csrf_secret_32_chars # استبدل هذا بمفتاح CSRF عشوائي
+      - key: SIGNED_URL_SECRET
+        value: your_signed_url_secret_32_chars # استبدل هذا بمفتاح توقيع الصور العشوائي
+      - key: DATABASE_URL
+        value: postgresql+asyncpg://postgres.your_ref:your_password@aws-0-eu-central-1.pooler.supabase.com:6543/postgres # استبدل هذا برابط Transaction Pooler من Supabase
+      - key: SYNC_DATABASE_URL
+        value: postgresql+psycopg2://postgres.your_ref:your_password@aws-0-eu-central-1.pooler.supabase.com:5432/postgres # استبدل هذا برابط Session/Direct Pooler من Supabase
+      - key: REDIS_URL
+        value: rediss://default:your_upstash_token@your-endpoint.upstash.io:6379 # استبدل هذا برابط Upstash Redis
+      - key: SUPABASE_URL
+        value: https://your-supabase-ref.supabase.co # استبدل هذا برابط مشروع Supabase
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        value: your_supabase_service_role_key # استبدل هذا بمفتاح service_role الخاص بـ Supabase
+      - key: SUPABASE_STORAGE_BUCKET
+        value: payment-receipts
+      - key: ALLOWED_ORIGINS
+        value: '["https://code-belaraby-staging.vercel.app"]' # استبدل هذا برابط Vercel الناتج
+      - key: SECURE_COOKIES
+        value: "true"
+      - key: RUN_SEED
+        value: "false"
       - key: ALLOW_LOCAL_RUNNER_IN_PROD
         value: "false"
-      - key: RUN_SEED
+      - key: DB_POOL_SIZE
+        value: "20"
+      - key: DB_MAX_OVERFLOW
+        value: "40"
+
+  # 2. Worker Service (Isolated Execution Queue Worker)
+  - type: worker
+    name: code-belaraby-worker-staging
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app/worker.py
+    envVars:
+      - key: ENVIRONMENT
+        value: staging
+      - key: REDIS_URL
+        value: rediss://default:your_upstash_token@your-endpoint.upstash.io:6379 # استبدل هذا برابط Upstash Redis
+      - key: ALLOW_LOCAL_RUNNER_IN_PROD
         value: "false"
