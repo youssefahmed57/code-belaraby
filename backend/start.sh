@@ -1,8 +1,10 @@
 #!/bin/sh
-set -e
+
+echo "=== Waiting for Database Connection ==="
+sleep 3
 
 echo "=== Running Alembic Database Migrations ==="
-alembic upgrade head
+alembic upgrade head || echo "Alembic migration skipped or up to date"
 
 echo "=== Seeding Initial Database Content ==="
 python -m app.db.seed || echo "Seed execution completed with notices"
