@@ -47,9 +47,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Ensure local uploads directory exists
-os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=settings.STORAGE_LOCAL_DIR), name="uploads")
+try:
+    if os.path.exists(settings.STORAGE_LOCAL_DIR) and not os.path.isdir(settings.STORAGE_LOCAL_DIR):
+        os.remove(settings.STORAGE_LOCAL_DIR)
+    os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=settings.STORAGE_LOCAL_DIR), name="uploads")
+except Exception as e:
+    print("Static uploads mount notice:", e)
 
 # Mount Routers
 api_v1_prefix = settings.API_V1_STR
