@@ -21,12 +21,6 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    import asyncio
-    try:
-        from app.db.seed import seed_db
-        await asyncio.to_thread(seed_db)
-    except Exception as e:
-        print("Auto seed notice:", e)
     yield
 
 app = FastAPI(

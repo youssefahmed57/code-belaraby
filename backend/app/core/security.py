@@ -8,11 +8,11 @@ from passlib.context import CryptContext
 from fastapi import Request, Response, HTTPException, status
 from app.core.config import settings
 
-# CryptContext with Argon2id tuned to OWASP web app standards
+# CryptContext with Argon2id tuned to OWASP web app standards (19 MiB minimum)
 pwd_context = CryptContext(
     schemes=["argon2", "bcrypt", "pbkdf2_sha256"],
     deprecated="auto",
-    argon2__memory_cost=16384, # 16 MB per hash
+    argon2__memory_cost=19456, # 19 MiB per hash per OWASP guidelines
     argon2__time_cost=2,
     argon2__parallelism=1
 )
