@@ -120,7 +120,9 @@ export default function StudentDashboard() {
               <Flame className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-2xl font-extrabold text-white">{summary.learning_streak_days} أيام</div>
+              <div className="text-2xl font-extrabold text-white">
+                {summary.learning_streak_days === 0 ? "0 يوم" : summary.learning_streak_days === 1 ? "يوم واحد" : summary.learning_streak_days === 2 ? "يومان" : summary.learning_streak_days <= 10 ? `${summary.learning_streak_days} أيام` : `${summary.learning_streak_days} يوماً`}
+              </div>
               <div className="text-xs text-slate-400">سلسلة التعلم (Streak)</div>
             </div>
           </div>
@@ -140,7 +142,9 @@ export default function StudentDashboard() {
               <Award className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-2xl font-extrabold text-white">{summary.average_quiz_score}%</div>
+              <div className="text-2xl font-extrabold text-white">
+                {summary.average_quiz_score > 0 ? `${summary.average_quiz_score}%` : "0%"}
+              </div>
               <div className="text-xs text-slate-400">متوسط درجات الاختبارات</div>
             </div>
           </div>

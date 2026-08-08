@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, date
 from typing import Dict, Any, List
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +7,7 @@ from sqlalchemy import select, func
 from app.core.database import get_db
 from app.db.models import (
     User, Course, Module, Lesson, Enrolment, LessonProgress,
-    QuizAttempt
+    QuizAttempt, CodeSubmission
 )
 from app.api.deps import get_current_user
 
@@ -157,7 +157,7 @@ async def get_dashboard_summary(
     completed_lessons_total = sum(c["completed_lessons"] for c in active_courses)
     total_lessons_total = sum(c["total_lessons"] for c in active_courses)
 
-    # Average quiz score
+    # Real Average quiz score
     stmt_quiz = select(func.avg(QuizAttempt.percentage)).where(
         QuizAttempt.student_id == current_user.id,
         QuizAttempt.status == "submitted"
@@ -167,9 +167,53 @@ async def get_dashboard_summary(
     if avg_score is not None:
         average_quiz_score = round(float(avg_score), 1)
     else:
-        average_quiz_score = 0.0 if not active_courses else 95.0
+        average_quiz_score = 0.0
 
-    learning_streak_days = 5
+    # Real Learning streak calculation
+    res_q_dates = await db.execute(
+        select(func.date(QuizAttempt.submitted_at)).where(
+            QuizAttempt.student_id == current_user.id,
+            QuizAttempt.submitted_at.isnot(None)
+        )
+    )
+    res_lp_dates = await db.execute(
+        select(func.date(LessonProgress.updated_at)).where(
+            LessonProgress.student_id == current_user.id
+        )
+    )
+    res_sub_dates = await db.execute(
+        select(func.date(CodeSubmission.created_at)).where(
+            CodeSubmission.student_id == current_user.id
+        )
+    )
+
+    activity_dates = set()
+    for d in (res_q_dates.scalars().all() + res_lp_dates.scalars().all() + res_sub_dates.scalars().all()):
+        if d:
+            if isinstance(d, str):
+                try:
+                    d = datetime.strptime(d, "%Y-%m-%d").date()
+                except Exception:
+                    continue
+            elif isinstance(d, datetime):
+                d = d.date()
+            activity_dates.add(d)
+
+    today = datetime.utcnow().date()
+    yesterday = today - timedelta(days=1)
+
+    if not activity_dates:
+        learning_streak_days = 0
+    else:
+        curr = today if today in activity_dates else (yesterday if yesterday in activity_dates else None)
+        if curr is None:
+            learning_streak_days = 0
+        else:
+            streak = 0
+            while curr in activity_dates:
+                streak += 1
+                curr -= timedelta(days=1)
+            learning_streak_days = streak
 
     return {
         "active_enrolment_count": len(active_courses),
