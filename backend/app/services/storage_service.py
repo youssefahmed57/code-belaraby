@@ -63,6 +63,8 @@ class StorageService:
             return file_key
         else:
             # Fallback to local storage (for offline unit tests / dev)
+            if os.path.exists(settings.STORAGE_LOCAL_DIR) and not os.path.isdir(settings.STORAGE_LOCAL_DIR):
+                os.remove(settings.STORAGE_LOCAL_DIR)
             os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
             full_path = os.path.join(settings.STORAGE_LOCAL_DIR, file_key)
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
