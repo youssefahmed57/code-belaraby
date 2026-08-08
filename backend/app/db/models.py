@@ -136,7 +136,7 @@ class Module(Base):
     __tablename__ = "modules"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    course_id = Column(String(36), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    course_id = Column(String(36), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     order = Column(Integer, default=1, nullable=False)
@@ -153,7 +153,7 @@ class Lesson(Base):
     __tablename__ = "lessons"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    module_id = Column(String(36), ForeignKey("modules.id", ondelete="CASCADE"), nullable=False)
+    module_id = Column(String(36), ForeignKey("modules.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(255), nullable=False)
     slug = Column(String(255), index=True, nullable=False)
     description = Column(Text, nullable=True)
@@ -226,9 +226,9 @@ class Enrolment(Base):
     __tablename__ = "enrolments"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    course_id = Column(String(36), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
-    status = Column(String(50), default="active", nullable=False) # pending, active, paused, expired, revoked, completed
+    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    course_id = Column(String(36), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(50), default="active", nullable=False, index=True) # pending, active, paused, expired, revoked, completed
     access_start = Column(DateTime, default=datetime.utcnow, nullable=False)
     access_expiry = Column(DateTime, nullable=True)
     payment_id = Column(String(36), ForeignKey("payments.id"), nullable=True)
@@ -247,8 +247,8 @@ class Payment(Base):
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     reference_code = Column(String(100), unique=True, index=True, nullable=False)
-    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    course_id = Column(String(36), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    course_id = Column(String(36), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
     amount_expected = Column(Float, nullable=False)
     amount_submitted = Column(Float, nullable=True)
     payment_method = Column(String(50), nullable=False) # instapay, vodafone_cash, whatsapp
@@ -259,7 +259,7 @@ class Payment(Base):
     reviewer_id = Column(String(36), ForeignKey("users.id"), nullable=True)
     review_note = Column(Text, nullable=True)
     rejection_reason = Column(Text, nullable=True)
-    status = Column(String(50), default="draft", nullable=False) # draft, awaiting_receipt, pending_review, more_info_required, approved, rejected, cancelled, refunded
+    status = Column(String(50), default="draft", nullable=False, index=True) # draft, awaiting_receipt, pending_review, more_info_required, approved, rejected, cancelled, refunded
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     submitted_at = Column(DateTime, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
@@ -360,10 +360,10 @@ class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    quiz_id = Column(String(36), ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False)
-    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    quiz_id = Column(String(36), ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     attempt_number = Column(Integer, default=1, nullable=False)
-    status = Column(String(50), default="in_progress") # in_progress, submitted, timed_out, reviewed
+    status = Column(String(50), default="in_progress", index=True) # in_progress, submitted, timed_out, reviewed
     start_time = Column(DateTime, default=datetime.utcnow, nullable=False)
     end_time = Column(DateTime, nullable=True)
     submitted_at = Column(DateTime, nullable=True)
@@ -473,12 +473,12 @@ class CodeSubmission(Base):
     __tablename__ = "code_submissions"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    problem_id = Column(String(36), ForeignKey("coding_problems.id", ondelete="CASCADE"), nullable=False)
-    lesson_id = Column(String(36), ForeignKey("lessons.id"), nullable=True)
+    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    problem_id = Column(String(36), ForeignKey("coding_problems.id", ondelete="CASCADE"), nullable=False, index=True)
+    lesson_id = Column(String(36), ForeignKey("lessons.id"), nullable=True, index=True)
     language = Column(String(50), nullable=False, default="python")
     source_code = Column(Text, nullable=False)
-    status = Column(String(50), default="queued") # queued, running, accepted, wrong_answer, compilation_error, runtime_error, time_limit_exceeded, memory_limit_exceeded, internal_error
+    status = Column(String(50), default="queued", index=True) # queued, running, accepted, wrong_answer, compilation_error, runtime_error, time_limit_exceeded, memory_limit_exceeded, internal_error
     score = Column(Float, default=0.0)
     execution_time_seconds = Column(Float, default=0.0)
     memory_used_kb = Column(Integer, default=0)
@@ -509,9 +509,9 @@ class LessonProgress(Base):
     __tablename__ = "lesson_progress"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    lesson_id = Column(String(36), ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
-    status = Column(String(50), default="locked") # locked, available, in_progress, completed
+    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    lesson_id = Column(String(36), ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(50), default="locked", index=True) # locked, available, in_progress, completed
     theory_opened = Column(Boolean, default=False)
     theory_completed = Column(Boolean, default=False)
     video_watched_percentage = Column(Float, default=0.0)

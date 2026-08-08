@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
-from app.db.models import Course, Module, Lesson
+from app.db.models import Course, Module, Lesson, User
+from app.api.deps import get_current_user
 from app.schemas.all_schemas import CourseResponse, ModuleResponse, LessonResponse
 
 router = APIRouter(prefix="/courses", tags=["Courses"])
@@ -18,6 +19,27 @@ async def list_courses(
         stmt = stmt.where(Course.grade_level == grade_level)
     stmt = stmt.order_by(Course.created_at.desc())
 
+    res = await db.execute(stmt)
+    courses = res.scalars().all()
+    return [CourseResponse.model_validate(c) for c in courses]
+
+@router.get("/my-enrolments", response_model=List[CourseResponse])
+@router.get("/my-courses", response_model=List[CourseResponse])
+async def list_my_enrolled_courses(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.db.models import Enrolment
+    stmt = (
+        select(Course)
+        .join(Enrolment, Enrolment.course_id == Course.id)
+        .where(
+            Enrolment.student_id == current_user.id,
+            Enrolment.status == "active",
+            Course.status == "published"
+        )
+        .order_by(Course.created_at.desc())
+    )
     res = await db.execute(stmt)
     courses = res.scalars().all()
     return [CourseResponse.model_validate(c) for c in courses]
