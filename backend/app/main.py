@@ -48,8 +48,6 @@ app.add_middleware(
 )
 
 try:
-    if os.path.exists(settings.STORAGE_LOCAL_DIR) and not os.path.isdir(settings.STORAGE_LOCAL_DIR):
-        os.remove(settings.STORAGE_LOCAL_DIR)
     os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=settings.STORAGE_LOCAL_DIR), name="uploads")
 except Exception as e:
