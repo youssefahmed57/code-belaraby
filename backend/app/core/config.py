@@ -12,11 +12,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(..., env="SECRET_KEY")
     CSRF_SECRET: str = Field("default_csrf_secret_key_32_characters_long", env="CSRF_SECRET")
     
-    ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:3000"
-    ]
+    ALLOWED_ORIGINS: List[str] = ["*"]
     
     COOKIE_DOMAIN: str = "localhost"
     SECURE_COOKIES: bool = False
