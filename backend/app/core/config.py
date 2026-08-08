@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./code_journey.db"
     SYNC_DATABASE_URL: str = "sqlite:///./code_journey.db"
-    DB_POOL_SIZE: int = 20
-    DB_MAX_OVERFLOW: int = 40
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 10
 
     @validator("DATABASE_URL", pre=True, always=True)
     def ensure_async_db_url(cls, v):
