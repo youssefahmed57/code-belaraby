@@ -72,11 +72,17 @@ export default function AdminDashboardPage() {
   };
 
   const handlePreviewReceipt = async (fileKey: string) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://a12tqtb1zoht2490gpbgg0ea.72.62.148.31.sslip.io/api/v1";
     try {
       const res = await api.post(`/payments/admin/generate-preview-url?file_key=${encodeURIComponent(fileKey)}`);
-      setSelectedReceipt(res.data.signed_url || `/api/v1/payments/preview?token=${res.data.token}`);
+      let rawUrl = res.data.preview_url || res.data.signed_url || `/payments/preview?token=${res.data.token}`;
+      if (rawUrl.startsWith("/")) {
+        const serverOrigin = apiBase.replace(/\/api\/v1\/?$/, "");
+        rawUrl = `${serverOrigin}${rawUrl}`;
+      }
+      setSelectedReceipt(rawUrl);
     } catch {
-      setSelectedReceipt(`/api/v1/payments/preview?token=${fileKey}`);
+      setSelectedReceipt(`${apiBase}/payments/preview?token=${encodeURIComponent(fileKey)}`);
     }
   };
 
@@ -109,6 +115,8 @@ export default function AdminDashboardPage() {
     );
   }
 
+  const exportCsvUrl = `${process.env.NEXT_PUBLIC_API_URL || "https://a12tqtb1zoht2490gpbgg0ea.72.62.148.31.sslip.io/api/v1"}/admin/export-csv`;
+
   return (
     <div className="min-h-screen bg-navy-900 text-white p-4 sm:p-6 lg:p-8 space-y-8">
       {/* Admin Top Navigation Header */}
@@ -125,7 +133,7 @@ export default function AdminDashboardPage() {
 
         <div className="flex items-center gap-3">
           <a
-            href="/api/v1/admin/export-csv"
+            href={exportCsvUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="px-5 py-2.5 rounded-xl bg-navy-800 hover:bg-navy-700 border border-slate-700 text-white text-xs font-bold flex items-center gap-2 transition-colors"
