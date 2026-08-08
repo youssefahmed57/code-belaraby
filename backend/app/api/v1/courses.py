@@ -7,13 +7,27 @@ from app.db.models import Course, Module, Lesson, User
 from app.api.deps import get_current_user
 from app.schemas.all_schemas import CourseResponse, ModuleResponse, LessonResponse
 
+import time
+from sqlalchemy.orm import selectinload
+
 router = APIRouter(prefix="/courses", tags=["Courses"])
+
+_catalog_cache = {}
+_course_cache = {}
+CACHE_TTL = 15.0 # seconds
 
 @router.get("", response_model=List[CourseResponse])
 async def list_courses(
     grade_level: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
+    now = time.time()
+    cache_key = grade_level or "all"
+    if cache_key in _catalog_cache:
+        cached_ts, cached_data = _catalog_cache[cache_key]
+        if now - cached_ts < CACHE_TTL:
+            return cached_data
+
     stmt = select(Course).where(Course.status == "published", Course.visibility == "public")
     if grade_level:
         stmt = stmt.where(Course.grade_level == grade_level)
@@ -21,7 +35,9 @@ async def list_courses(
 
     res = await db.execute(stmt)
     courses = res.scalars().all()
-    return [CourseResponse.model_validate(c) for c in courses]
+    result = [CourseResponse.model_validate(c) for c in courses]
+    _catalog_cache[cache_key] = (now, result)
+    return result
 
 @router.get("/my-enrolments", response_model=List[CourseResponse])
 @router.get("/my-courses", response_model=List[CourseResponse])
@@ -46,23 +62,26 @@ async def list_my_enrolled_courses(
 
 @router.get("/{slug}")
 async def get_course_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
-    stmt = select(Course).where(Course.slug == slug, Course.status == "published")
+    now = time.time()
+    if slug in _course_cache:
+        cached_ts, cached_data = _course_cache[slug]
+        if now - cached_ts < CACHE_TTL:
+            return cached_data
+
+    stmt = (
+        select(Course)
+        .options(selectinload(Course.modules).selectinload(Module.lessons))
+        .where(Course.slug == slug, Course.status == "published")
+    )
     res = await db.execute(stmt)
     course = res.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=404, detail="الكورس غير موجود.")
 
-    # Fetch modules and lessons hierarchy
-    stmt_mods = select(Module).where(Module.course_id == course.id, Module.status == "published").order_by(Module.order)
-    res_mods = await db.execute(stmt_mods)
-    modules = res_mods.scalars().all()
-
     modules_data = []
-    for mod in modules:
-        stmt_l = select(Lesson).where(Lesson.module_id == mod.id, Lesson.publishing_status == "published").order_by(Lesson.order)
-        res_l = await db.execute(stmt_l)
-        lessons = res_l.scalars().all()
-
+    sorted_modules = sorted([m for m in course.modules if m.status == "published"], key=lambda m: m.order)
+    for mod in sorted_modules:
+        sorted_lessons = sorted([l for l in mod.lessons if l.publishing_status == "published"], key=lambda l: l.order)
         modules_data.append({
             "id": mod.id,
             "title": mod.title,
@@ -76,10 +95,11 @@ async def get_course_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
                     "duration": l.estimated_duration_minutes,
                     "is_preview": l.preview_status,
                     "order": l.order
-                } for l in lessons
+                } for l in sorted_lessons
             ]
         })
 
     course_dict = CourseResponse.model_validate(course).model_dump()
     course_dict["modules"] = modules_data
+    _course_cache[slug] = (now, course_dict)
     return course_dict
