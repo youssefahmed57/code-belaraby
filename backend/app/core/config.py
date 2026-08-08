@@ -70,7 +70,7 @@ class Settings(BaseSettings):
 
     # Storage
     STORAGE_PROVIDER: str = "supabase"
-    STORAGE_LOCAL_DIR: str = "./uploads"
+    STORAGE_LOCAL_DIR: str = "./storage_uploads"
     S3_ENDPOINT_URL: str = "https://mock.r2.cloudflarestorage.com"
     S3_ACCESS_KEY_ID: str = "mock_access_key"
     S3_SECRET_ACCESS_KEY: str = "mock_secret_key"
