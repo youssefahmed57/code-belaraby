@@ -148,10 +148,10 @@ export default function LessonReaderPage({ params }: { params: { id: string } })
       </header>
 
       {/* Main Tabs Navigation */}
-      <div className="border-b border-slate-800/80 bg-navy-950/60 px-6 flex items-center gap-2">
+      <div className="border-b border-slate-800/80 bg-navy-950/60 px-4 sm:px-6 flex items-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-none py-1 shrink-0">
         <button
           onClick={() => setActiveTab("video")}
-          className={`px-5 py-3.5 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors ${
+          className={`px-4 sm:px-5 py-3 text-xs sm:text-sm font-bold border-b-2 flex items-center gap-2 transition-colors shrink-0 ${
             activeTab === "video"
               ? "border-brand-blue text-brand-blue"
               : "border-transparent text-slate-400 hover:text-white"
@@ -163,47 +163,47 @@ export default function LessonReaderPage({ params }: { params: { id: string } })
 
         <button
           onClick={() => setActiveTab("theory")}
-          className={`px-5 py-3.5 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors ${
+          className={`px-4 sm:px-5 py-3 text-xs sm:text-sm font-bold border-b-2 flex items-center gap-2 transition-colors shrink-0 ${
             activeTab === "theory"
               ? "border-brand-blue text-brand-blue"
               : "border-transparent text-slate-400 hover:text-white"
           }`}
         >
           <BookOpen className="w-4 h-4" />
-          الشرح النظري والبيانات
+          الشرح النظري
         </button>
 
         <button
           onClick={() => setActiveTab("coding")}
-          className={`px-5 py-3.5 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors ${
+          className={`px-4 sm:px-5 py-3 text-xs sm:text-sm font-bold border-b-2 flex items-center gap-2 transition-colors shrink-0 ${
             activeTab === "coding"
               ? "border-cyan-400 text-cyan-400"
               : "border-transparent text-slate-400 hover:text-white"
           }`}
         >
           <Code2 className="w-4 h-4" />
-          محرر الكود والتحدي العملي
+          التحدي العملي
         </button>
 
         <button
           onClick={() => setActiveTab("quiz")}
-          className={`px-5 py-3.5 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors ${
+          className={`px-4 sm:px-5 py-3 text-xs sm:text-sm font-bold border-b-2 flex items-center gap-2 transition-colors shrink-0 ${
             activeTab === "quiz"
               ? "border-amber-400 text-amber-400"
               : "border-transparent text-slate-400 hover:text-white"
           }`}
         >
           <HelpCircle className="w-4 h-4" />
-          كويز الدرس (Quiz)
+          كويز الدرس
         </button>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-grow p-6">
+      <div className="flex-grow p-3 sm:p-6">
         {/* Tab 1: Video Player */}
         {activeTab === "video" && (
           <div className="max-w-5xl mx-auto space-y-6">
-            <div className="aspect-video w-full rounded-3xl overflow-hidden glass-panel border border-slate-800 relative bg-black">
+            <div className="aspect-video w-full rounded-2xl sm:rounded-3xl overflow-hidden glass-panel border border-slate-800 relative bg-black">
               <iframe
                 src={`/api/v1/videos/stream-mock/demo_video_lesson_1?token=mock_signed_token`}
                 className="w-full h-full border-0"
@@ -211,8 +211,8 @@ export default function LessonReaderPage({ params }: { params: { id: string } })
                 allowFullScreen
               />
             </div>
-            <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-2">
-              <h3 className="text-lg font-bold text-white">متابعة مشاهدة الفيديو</h3>
+            <div className="p-4 sm:p-6 rounded-2xl glass-panel border border-slate-800 space-y-2">
+              <h3 className="text-base sm:text-lg font-bold text-white">متابعة مشاهدة الفيديو</h3>
               <p className="text-xs text-slate-400">
                 ملاحظة هامة: يجب مشاهدة 80% على الأقل من مدة الفيديو حتى يُحتسب متطلب المشاهدة تلقائياً في حسابك.
               </p>
@@ -222,15 +222,15 @@ export default function LessonReaderPage({ params }: { params: { id: string } })
 
         {/* Tab 2: Theory Reader */}
         {activeTab === "theory" && (
-          <div className="max-w-4xl mx-auto p-8 rounded-3xl glass-panel border border-slate-800 space-y-6">
+          <div className="max-w-4xl mx-auto p-4 sm:p-8 rounded-2xl sm:rounded-3xl glass-panel border border-slate-800 space-y-6">
             <div
-              className="prose prose-invert max-w-none text-slate-300 leading-relaxed"
+              className="prose prose-invert max-w-none text-slate-300 text-sm leading-relaxed"
               dangerouslySetInnerHTML={{ __html: lesson?.rich_content || "<p>لا يوجد محتوى نظري.</p>" }}
             />
             <div className="pt-6 border-t border-slate-800 flex justify-end">
               <button
                 onClick={() => alert("تم تعليم الجزء النظري كمكتمل!")}
-                className="px-6 py-3 rounded-xl bg-brand-blue hover:bg-brand-blueHover text-white font-bold text-sm shadow-lg shadow-blue-500/20 transition-colors flex items-center gap-2"
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-brand-blue hover:bg-brand-blueHover text-white font-bold text-xs sm:text-sm shadow-lg shadow-blue-500/20 transition-colors flex items-center justify-center gap-2"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 تأكيد قراءة الشرح النظري
@@ -241,7 +241,7 @@ export default function LessonReaderPage({ params }: { params: { id: string } })
 
         {/* Tab 3: Monaco Code Editor & Practical Challenge */}
         {activeTab === "coding" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[75vh]">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 min-h-[70vh]">
             {/* Problem Statement Panel */}
             <div className="lg:col-span-5 p-6 rounded-3xl glass-panel border border-slate-800 space-y-4 overflow-y-auto">
               <div className="flex items-center justify-between">

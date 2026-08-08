@@ -82,7 +82,7 @@ export default function StudentDashboard() {
           <div className="space-y-2 z-10">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-blue/10 border border-brand-blue/30 text-brand-blue text-xs font-bold">
               <Sparkles className="w-3.5 h-3.5" />
-              مرحباً بك في أكاديمية كود جيرني
+              مرحباً بك في كود بالعربي
             </div>
             <h1 className="text-3xl font-extrabold text-white">
               أهلاً بك، {user?.arabic_name || "عزيزي الطالب"} 👋

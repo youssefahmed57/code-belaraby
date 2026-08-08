@@ -4,13 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
-import { Play, ChevronRight, RefreshCw, Code2, Trash2, CheckCircle2, AlertTriangle, Clock, Copy, RotateCcw } from "lucide-react";
+import { Play, ChevronRight, RefreshCw, Code2, Trash2, CheckCircle2, AlertTriangle, Clock, Copy, RotateCcw, Terminal, FileCode, Sliders } from "lucide-react";
 
 // Client-only dynamic import of Monaco Editor with SSR disabled
 const Editor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full min-h-[500px] bg-navy-950 flex flex-col items-center justify-center text-slate-400 gap-3 border border-slate-800">
+    <div className="w-full h-full min-h-[400px] bg-navy-950 flex flex-col items-center justify-center text-slate-400 gap-3 border border-slate-800">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue"></div>
       <span className="text-xs font-mono">جاري تحميل محرر Monaco...</span>
     </div>
@@ -45,6 +45,9 @@ export default function PlaygroundPage() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
 
+  // Mobile Navigation Tab State: 'code' | 'stdin' | 'output'
+  const [activeTab, setActiveTab] = useState<"code" | "stdin" | "output">("code");
+
   const updateCode = (newCode: string) => {
     codeRef.current = newCode;
     setCode(newCode);
@@ -58,6 +61,9 @@ export default function PlaygroundPage() {
     setExecutionStatus("");
     setExecutionTime(null);
     setMemoryUsed(null);
+
+    // Switch to output tab on mobile when running
+    setActiveTab("output");
 
     const activeCode = codeRef.current;
     const activeStdin = stdinRef.current;
@@ -116,22 +122,22 @@ export default function PlaygroundPage() {
   };
 
   return (
-    <div className="min-h-screen bg-navy-950 text-white flex flex-col font-cairo">
-      {/* Header Bar */}
-      <header className="glass-panel border-b border-slate-800 px-4 sm:px-6 py-3 flex items-center justify-between h-16 shrink-0">
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="p-2 rounded-xl bg-navy-900 border border-slate-800 text-slate-300 hover:text-white transition-colors">
-            <ChevronRight className="w-5 h-5" />
+    <div className="min-h-screen bg-navy-950 text-white flex flex-col font-cairo select-none sm:select-auto">
+      {/* Top Desktop/Mobile Header Bar */}
+      <header className="glass-panel border-b border-slate-800 px-3 sm:px-6 py-2.5 flex items-center justify-between h-14 sm:h-16 shrink-0 z-20">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link href="/dashboard" className="p-1.5 sm:p-2 rounded-xl bg-navy-900 border border-slate-800 text-slate-300 hover:text-white transition-colors">
+            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
           </Link>
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-brand-blue/20 border border-brand-blue/30 flex items-center justify-center">
-              <Code2 className="w-4 h-4 text-brand-blue" />
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-brand-blue/20 border border-brand-blue/30 flex items-center justify-center">
+              <Code2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-blue" />
             </div>
-            <h1 className="text-base font-bold text-white hidden sm:block">محرر الكود</h1>
+            <h1 className="text-sm sm:text-base font-bold text-white">محرر الكود</h1>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2.5">
           <select
             value={language}
             onChange={(e) => {
@@ -140,15 +146,15 @@ export default function PlaygroundPage() {
               if (lang === "python") updateCode(DEFAULT_PYTHON_CODE);
               else updateCode('console.log("hello world");');
             }}
-            className="px-3 py-2 rounded-xl bg-navy-900 border border-slate-700 text-xs font-bold text-cyan-400 focus:outline-none"
+            className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-navy-900 border border-slate-700 text-xs font-bold text-cyan-400 focus:outline-none"
           >
             <option value="python">Python 3.11</option>
-            <option value="javascript">JavaScript (Node)</option>
+            <option value="javascript">JS (Node)</option>
           </select>
 
           <button
             onClick={handleCopyCode}
-            className="p-2.5 rounded-xl bg-navy-900 border border-slate-800 hover:bg-navy-800 text-slate-300 hover:text-white transition-colors"
+            className="p-1.5 sm:p-2.5 rounded-xl bg-navy-900 border border-slate-800 hover:bg-navy-800 text-slate-300 hover:text-white transition-colors"
             title="نسخ الكود"
           >
             <Copy className="w-4 h-4" />
@@ -156,7 +162,7 @@ export default function PlaygroundPage() {
 
           <button
             onClick={handleResetCode}
-            className="p-2.5 rounded-xl bg-navy-900 border border-slate-800 hover:bg-navy-800 text-slate-300 hover:text-white transition-colors"
+            className="p-1.5 sm:p-2.5 rounded-xl bg-navy-900 border border-slate-800 hover:bg-navy-800 text-slate-300 hover:text-white transition-colors"
             title="إعادة تعيين الكود"
           >
             <RotateCcw className="w-4 h-4" />
@@ -165,7 +171,7 @@ export default function PlaygroundPage() {
           <button
             onClick={handleRun}
             disabled={isRunning}
-            className="px-5 py-2 rounded-xl bg-gradient-to-r from-brand-blue to-cyan-500 hover:from-brand-blueHover hover:to-cyan-600 text-white font-bold text-xs shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="hidden sm:flex px-4 py-2 rounded-xl bg-gradient-to-r from-brand-blue to-cyan-500 hover:from-brand-blueHover hover:to-cyan-600 text-white font-bold text-xs shadow-md transition-all items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isRunning ? (
               <>
@@ -175,18 +181,69 @@ export default function PlaygroundPage() {
             ) : (
               <>
                 <Play className="w-4 h-4 fill-white" />
-                <span>تشغيل الكود (Ctrl + Enter)</span>
+                <span>تشغيل (Ctrl + Enter)</span>
               </>
             )}
           </button>
         </div>
       </header>
 
+      {/* Mobile Interactive Tab Bar (< lg screens) */}
+      <div className="lg:hidden flex items-center justify-around bg-navy-900 border-b border-slate-800 px-2 py-1.5 shrink-0 z-10">
+        <button
+          onClick={() => setActiveTab("code")}
+          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            activeTab === "code"
+              ? "bg-brand-blue text-white shadow-md shadow-blue-500/20"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <FileCode className="w-3.5 h-3.5" />
+          <span>المحرر</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("stdin")}
+          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            activeTab === "stdin"
+              ? "bg-brand-blue text-white shadow-md shadow-blue-500/20"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <Sliders className="w-3.5 h-3.5" />
+          <span>المدخلات</span>
+          {stdin.trim() && <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>}
+        </button>
+
+        <button
+          onClick={() => setActiveTab("output")}
+          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 relative ${
+            activeTab === "output"
+              ? "bg-brand-blue text-white shadow-md shadow-blue-500/20"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <Terminal className="w-3.5 h-3.5" />
+          <span>النتيجة</span>
+          {executionStatus && (
+            <span
+              className={`w-2 h-2 rounded-full ${
+                executionStatus === "Accepted" ? "bg-emerald-400" : "bg-red-400"
+              }`}
+            ></span>
+          )}
+        </button>
+      </div>
+
       {/* Main Container */}
-      <div className="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-0 min-h-[calc(100vh-4rem)]">
-        {/* Monaco Editor Container (LTR) */}
-        <div className="lg:col-span-8 border-b lg:border-b-0 lg:border-l border-slate-800 flex flex-col bg-navy-950">
-          <div dir="ltr" className="w-full flex-grow min-h-[450px] lg:min-h-[600px] text-left">
+      <div className="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-0 min-h-[calc(100vh-7rem)] lg:min-h-[calc(100vh-4rem)] relative">
+        {/* Monaco Editor Container */}
+        <div
+          className={`lg:col-span-8 border-b lg:border-b-0 lg:border-l border-slate-800 flex flex-col bg-navy-950 ${
+            activeTab === "code" ? "flex" : "hidden lg:flex"
+          }`}
+        >
+          <div dir="ltr" className="w-full flex-grow h-[calc(100vh-10rem)] lg:h-full lg:min-h-[600px] text-left">
             <Editor
               height="100%"
               language={language}
@@ -195,7 +252,7 @@ export default function PlaygroundPage() {
               onChange={(val) => updateCode(val || "")}
               options={{
                 automaticLayout: true,
-                fontSize: 15,
+                fontSize: 14,
                 fontFamily: "Consolas, Monaco, monospace",
                 minimap: { enabled: false },
                 wordWrap: "on",
@@ -208,9 +265,13 @@ export default function PlaygroundPage() {
         </div>
 
         {/* Console Input / Output Sidebar */}
-        <div className="lg:col-span-4 bg-navy-950 p-4 sm:p-6 flex flex-col gap-5 overflow-y-auto">
+        <div
+          className={`lg:col-span-4 bg-navy-950 p-4 sm:p-6 flex-col gap-5 overflow-y-auto ${
+            activeTab !== "code" ? "flex" : "hidden lg:flex"
+          }`}
+        >
           {/* Stdin Area */}
-          <div className="space-y-2">
+          <div className={`space-y-2 ${activeTab === "output" ? "hidden lg:block" : "block"}`}>
             <div>
               <label htmlFor="stdin" className="text-xs font-bold text-white block">
                 مدخلات البرنامج
@@ -220,7 +281,7 @@ export default function PlaygroundPage() {
             <textarea
               id="stdin"
               dir="ltr"
-              rows={3}
+              rows={4}
               value={stdin}
               onChange={(e) => setStdin(e.target.value)}
               placeholder="اكتب البيانات المراد قراءتها بواسطة input() هنا..."
@@ -229,7 +290,7 @@ export default function PlaygroundPage() {
           </div>
 
           {/* Execution Result Area */}
-          <div className="flex-grow flex flex-col space-y-2 min-h-[250px]">
+          <div className={`flex-grow flex-col space-y-2 min-h-[250px] ${activeTab === "stdin" ? "hidden lg:flex" : "flex"}`}>
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold text-white block">نتيجة التنفيذ</span>
@@ -254,7 +315,7 @@ export default function PlaygroundPage() {
                 </div>
               ) : !executionStatus ? (
                 <div className="text-slate-500 text-center py-10">
-                  اضغط على "تشغيل الكود" أو استخدم Ctrl + Enter لرؤية النتيجة المباشرة.
+                  اضغط على زر "تشغيل الكود" أسفل الشاشة لرؤية المخرجات.
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -311,8 +372,28 @@ export default function PlaygroundPage() {
               )}
             </div>
           </div>
-
         </div>
+      </div>
+
+      {/* Floating Action Button for Mobile Screens (< sm) */}
+      <div className="sm:hidden fixed bottom-5 left-5 z-30">
+        <button
+          onClick={handleRun}
+          disabled={isRunning}
+          className="px-5 py-3 rounded-full bg-gradient-to-r from-brand-blue to-cyan-500 hover:from-brand-blueHover hover:to-cyan-600 text-white font-bold text-xs shadow-2xl shadow-blue-500/50 flex items-center gap-2 disabled:opacity-50 border border-cyan-300/30"
+        >
+          {isRunning ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>جاري التنفيذ...</span>
+            </>
+          ) : (
+            <>
+              <Play className="w-4 h-4 fill-white" />
+              <span>تشغيل الكود</span>
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
