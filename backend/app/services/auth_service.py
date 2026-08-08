@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from fastapi import HTTPException, status
 
+import asyncio
 from app.db.models import User, Role, UserRole, UserSession, PasswordResetToken, AuditLog
 from app.core.security import get_password_hash, verify_password, create_access_token
 
@@ -62,11 +63,12 @@ async def register_student(
                 detail="البريد الإلكتروني مسجل بالفعل."
             )
 
+    hashed_pw = await asyncio.to_thread(get_password_hash, password)
     new_user = User(
         arabic_name=arabic_name.strip(),
         phone_number=normalized_phone,
         email=email.lower().strip() if email else None,
-        hashed_password=get_password_hash(password),
+        hashed_password=hashed_pw,
         grade_level=grade_level,
         parent_name=parent_name.strip() if parent_name else None,
         parent_phone=normalize_egypt_phone(parent_phone) if parent_phone else None,
@@ -129,8 +131,9 @@ async def login_user(
             detail="رقم الهاتف أو كلمة المرور غير صحيحة."
         )
 
-    # Verify password first
-    if not verify_password(password, user.hashed_password):
+    # Verify password first (async threadpool offload for high concurrency)
+    is_valid_pw = await asyncio.to_thread(verify_password, password, user.hashed_password)
+    if not is_valid_pw:
         now = datetime.utcnow()
         user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
         if user.failed_login_attempts >= 5:
