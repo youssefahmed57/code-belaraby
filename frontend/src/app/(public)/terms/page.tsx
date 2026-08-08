@@ -12,7 +12,7 @@ export default function TermsPage() {
         </Link>
         <div>
           <h1 className="text-3xl font-extrabold text-white">الشروط والأحكام وسياسة الاستخدام</h1>
-          <p className="text-sm text-slate-400">منصة كود جيرني أكاديمي (Code Journey Academy)</p>
+          <p className="text-sm text-slate-400">منصة كود بالعربي (Code Belaraby) • <span className="text-brand-blue font-medium">آخر تحديث: أغسطس 2026</span></p>
         </div>
       </div>
 
@@ -23,7 +23,7 @@ export default function TermsPage() {
             1. القبول بالشروط
           </h2>
           <p>
-            بمجرد إنشاء حسابك أو استخدام منصة كود جيرني أكاديمي، فإنك تقر بالموافقة الكاملة على جميع الشروط والأحكام الموضحة هنا وعلى الامتثال للقوانين واللوائح المنظمة.
+            بمجرد إنشاء حسابك أو استخدام منصة كود بالعربي، فإنك تقر بالموافقة الكاملة على جميع الشروط والأحكام الموضحة هنا وعلى الامتثال للقوانين واللوائح المنظمة.
           </p>
         </section>
 

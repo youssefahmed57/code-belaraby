@@ -3,21 +3,25 @@
 import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { Phone, Lock, LogIn, AlertCircle } from "lucide-react";
+import { Phone, Lock, LogIn, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError(null);
 
+    const cleanIdentifier = identifier.trim();
+
     try {
-      const res = await api.post("/auth/login", { identifier, password });
+      const res = await api.post("/auth/login", { identifier: cleanIdentifier, password });
       const { access_token, user, role } = res.data;
       
       localStorage.setItem("access_token", access_token);
@@ -29,7 +33,16 @@ export default function LoginPage() {
         window.location.href = "/dashboard";
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || "فشل تسجيل الدخول. يرجى التأكد من البيانات والمحاولة مجدداً.");
+      const status = err.response?.status;
+      if (status === 401) {
+        setError("رقم الهاتف أو كلمة المرور غير صحيحة.");
+      } else if (status === 429) {
+        setError("محاولات دخول كثيرة، يرجى المحاولة بعد قليل.");
+      } else if (status >= 500) {
+        setError("تعذر الاتصال بالخادم، يرجى المحاولة مرة أخرى.");
+      } else {
+        setError(err.response?.data?.detail || "فشل تسجيل الدخول. يرجى التأكد من البيانات والمحاولة مجدداً.");
+      }
     } finally {
       setLoading(false);
     }
@@ -40,7 +53,7 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8 glass-panel p-8 rounded-3xl border border-slate-800 shadow-2xl relative">
         <div className="text-center">
           <h2 className="text-3xl font-extrabold text-white">تسجيل الدخول</h2>
-          <p className="mt-2 text-sm text-slate-400">أهلاً بك مجدداً في منصة كود جيرني أكاديمي</p>
+          <p className="mt-2 text-sm text-slate-400">أهلاً بك مجدداً في منصة كود بالعربي</p>
         </div>
 
         {error && (
@@ -59,28 +72,42 @@ export default function LoginPage() {
                   id="identifier"
                   type="text"
                   required
+                  dir="ltr"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   placeholder="01011111111"
-                  className="w-full px-4 py-3 rounded-xl bg-navy-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-brand-blue transition-colors pl-10"
+                  className="w-full px-4 py-3 rounded-xl bg-navy-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-brand-blue transition-colors pl-10 text-left"
                 />
                 <Phone className="w-5 h-5 text-slate-500 absolute left-3 top-3.5" />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-2">كلمة المرور</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-slate-300">كلمة المرور</label>
+                <a href="https://wa.me/201001340533?text=نسيت%20كلمة%20المرور" target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline font-semibold">
+                  نسيت كلمة المرور؟
+                </a>
+              </div>
               <div className="relative">
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
+                  dir="ltr"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-4 py-3 rounded-xl bg-navy-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-brand-blue transition-colors pl-10"
+                  className="w-full px-4 py-3 rounded-xl bg-navy-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-brand-blue transition-colors pl-10 pr-10 text-left"
                 />
                 <Lock className="w-5 h-5 text-slate-500 absolute left-3 top-3.5" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3.5 text-slate-400 hover:text-white"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
           </div>
@@ -90,10 +117,19 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-3.5 rounded-xl bg-gradient-to-r from-brand-blue to-cyan-500 hover:from-brand-blueHover hover:to-cyan-600 text-white font-bold text-base shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {loading ? "جاري التحقق..." : "دخول الحساب"}
+            {loading ? "جاري تسجيل الدخول..." : "دخول الحساب"}
             <LogIn className="w-5 h-5" />
           </button>
         </form>
+
+        <div className="text-center pt-2 border-t border-slate-800/80">
+          <p className="text-xs text-slate-400">
+            ليس لديك حساب بعد؟{" "}
+            <Link href="/register" className="text-brand-blue font-bold hover:underline">
+              إنشاء حساب جديد
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

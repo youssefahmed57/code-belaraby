@@ -21,8 +21,8 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" className="dark">
       <head>
-        <title>منصة كود جيرني للبرمجة | Code Journey Academy</title>
-        <meta name="description" content="منصة تعليمية متكاملة لتدريس البرمجة والذكاء الاصطناعي لطلاب المرحلة الثانوية في مصر." />
+        <title>كود بالعربي | منصة تخصصية في تعليم البرمجة لطلاب المرحلة الثانوية</title>
+        <meta name="description" content="منصة كود بالعربي المتخصصة في تدريس البرمجة والمناهج التفاعلية لطلاب المرحلة الثانوية بإشراف نخبة من المتخصصين." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className="bg-navy-900 text-white min-h-screen font-cairo antialiased">

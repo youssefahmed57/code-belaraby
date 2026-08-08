@@ -12,7 +12,7 @@ export default function PrivacyPage() {
         </Link>
         <div>
           <h1 className="text-3xl font-extrabold text-white">سياسة الخصوصية وحماية البيانات</h1>
-          <p className="text-sm text-slate-400">منصة كود جيرني أكاديمي (Code Journey Academy)</p>
+          <p className="text-sm text-slate-400">منصة كود بالعربي (Code Belaraby) • <span className="text-brand-blue font-medium">آخر تحديث: أغسطس 2026</span></p>
         </div>
       </div>
 
@@ -40,10 +40,10 @@ export default function PrivacyPage() {
         <section className="space-y-2">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Lock className="w-5 h-5 text-brand-blue" />
-            3. حماية البيانات والتشفير
+            3. حماية البيانات والأمان
           </h2>
           <p>
-            نلتزم بتطبيق أحدث معايير الأمان وتشفير كلمات المرور باستخدام خوارزمية Argon2id، بالإضافة لجلسات التصفح المشفرة بـ JWT.
+            نلتزم بتطبيق وسائل تقنية وتنظيمية معتمدة ومناسبة لحماية بيانات المستخدمين وتأمين بيانات تسجيل الدخول ومنع الوصول غير المصرح به إليها.
           </p>
         </section>
       </div>

@@ -39,9 +39,9 @@ export default function Navbar() {
             </div>
             <div className="flex flex-col">
               <span className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
-                كود جيرني <span className="text-brand-blue text-[11px] px-2.5 py-0.5 rounded-full bg-brand-blue/10 border border-brand-blue/30 font-bold">أكاديمي</span>
+                كود بالعربي <span className="text-brand-blue text-[11px] px-2.5 py-0.5 rounded-full bg-brand-blue/10 border border-brand-blue/30 font-bold">&lt;/&gt;</span>
               </span>
-              <span className="text-xs font-medium text-slate-300">منصة برمجة الثانوية العامة</span>
+              <span className="text-xs font-medium text-slate-300">منصة تخصصية لبرمجة الثانوية العامة</span>
             </div>
           </Link>
 

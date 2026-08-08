@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { BookOpen, Search, Clock, Award, ChevronLeft, Layers, UserCheck } from "lucide-react";
+import { BookOpen, Search, Clock, Award, ChevronLeft, UserCheck, RefreshCw, AlertCircle } from "lucide-react";
 
 interface Course {
   id: string;
@@ -18,25 +19,36 @@ interface Course {
   total_lessons?: number;
 }
 
-export default function CoursesPage() {
+function CoursesContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const initialGrade = searchParams.get("grade") || "all";
+  const initialQuery = searchParams.get("q") || "";
+
   const [courses, setCourses] = useState<Course[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
-  const [gradeFilter, setGradeFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [gradeFilter, setGradeFilter] = useState<string>(initialGrade);
+  const [searchQuery, setSearchQuery] = useState<string>(initialQuery);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<boolean>(false);
+
+  const fetchCourses = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await api.get("/courses");
+      setCourses(res.data);
+      setFilteredCourses(res.data);
+    } catch (err) {
+      console.error("Failed to fetch courses catalog:", err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchCourses() {
-      try {
-        const res = await api.get("/courses");
-        setCourses(res.data);
-        setFilteredCourses(res.data);
-      } catch (err) {
-        console.error("Failed to fetch courses catalog:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchCourses();
   }, []);
 
@@ -54,6 +66,14 @@ export default function CoursesPage() {
       );
     }
     setFilteredCourses(result);
+
+    // Sync URL parameters
+    const params = new URLSearchParams();
+    if (gradeFilter !== "all") params.set("grade", gradeFilter);
+    if (searchQuery.trim()) params.set("q", searchQuery.trim());
+    const newQueryStr = params.toString();
+    const newUrl = newQueryStr ? `/courses?${newQueryStr}` : "/courses";
+    router.replace(newUrl, { scroll: false });
   }, [gradeFilter, searchQuery, courses]);
 
   const getGradeBadge = (grade: string) => {
@@ -127,11 +147,31 @@ export default function CoursesPage() {
           </div>
         </div>
 
-        {/* Courses Grid */}
+        {/* Courses Grid or Skeleton State */}
         {loading ? (
-          <div className="py-20 text-center text-slate-400">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-blue mx-auto mb-4"></div>
-            جاري تحميل الكورسات المتاحة...
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="glass-panel rounded-3xl border border-slate-800 p-6 space-y-4 animate-pulse">
+                <div className="h-40 bg-navy-800 rounded-2xl"></div>
+                <div className="h-6 bg-navy-800 rounded-lg w-3/4"></div>
+                <div className="h-4 bg-navy-800 rounded-lg w-full"></div>
+                <div className="h-4 bg-navy-800 rounded-lg w-2/3"></div>
+                <div className="h-10 bg-navy-800 rounded-xl"></div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="py-16 text-center glass-panel rounded-2xl border border-slate-800 space-y-4 max-w-md mx-auto">
+            <AlertCircle className="w-12 h-12 text-brand-red mx-auto" />
+            <h3 className="text-xl font-bold text-white">تعذر تحميل الكورسات المتاحة</h3>
+            <p className="text-slate-400 text-xs">يرجى التأكد من الاتصال بالإنترنت والمحاولة مجدداً.</p>
+            <button
+              onClick={fetchCourses}
+              className="px-5 py-2.5 rounded-xl bg-brand-blue text-white font-bold text-xs inline-flex items-center gap-2 hover:bg-brand-blueHover transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>إعادة المحاولة</span>
+            </button>
           </div>
         ) : filteredCourses.length === 0 ? (
           <div className="py-20 text-center glass-panel rounded-2xl border border-slate-800">
@@ -169,7 +209,7 @@ export default function CoursesPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Award className="w-4 h-4 text-yellow-500" />
-                        <span>شهادة إتمام</span>
+                        <span>محتوى عملي تفاعلي</span>
                       </div>
                     </div>
                   </div>
@@ -187,7 +227,7 @@ export default function CoursesPage() {
                     href={`/courses/${course.slug}`}
                     className="w-full py-3 rounded-xl bg-gradient-to-r from-brand-blue to-cyan-500 hover:from-brand-blueHover hover:to-cyan-600 text-white font-bold text-sm shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 group"
                   >
-                    <span>عرض التفاصيل والمنهج</span>
+                    <span>عرض تفاصيل الكورس</span>
                     <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                   </Link>
                 </div>
@@ -197,5 +237,18 @@ export default function CoursesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CoursesPage() {
+  return (
+    <Suspense fallback={
+      <div className="py-20 text-center text-slate-400 font-cairo">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-blue mx-auto mb-4"></div>
+        جاري تحميل كتالوج الكورسات...
+      </div>
+    }>
+      <CoursesContent />
+    </Suspense>
   );
 }

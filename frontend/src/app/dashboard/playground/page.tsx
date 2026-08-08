@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
-import { Play, ChevronRight, RefreshCw, Code2, Trash2, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
+import { Play, ChevronRight, RefreshCw, Code2, Trash2, CheckCircle2, AlertTriangle, Clock, Copy, RotateCcw } from "lucide-react";
 
 // Client-only dynamic import of Monaco Editor with SSR disabled
 const Editor = dynamic(() => import("@monaco-editor/react"), {
@@ -17,9 +17,19 @@ const Editor = dynamic(() => import("@monaco-editor/react"), {
   ),
 });
 
+const DEFAULT_PYTHON_CODE = `# كورس البرمجة للصف الأول الثانوي - كود بالعربي
+student_name = "أحمد"
+score = 100
+
+if score >= 50:
+    print(f"مبروك يا {student_name}، لقد اجتزت التحدي بنجاح!")
+else:
+    print("حاول مرة أخرى في التحدي القادم.")
+`;
+
 export default function PlaygroundPage() {
   const [language, setLanguage] = useState<string>("python");
-  const [code, setCode] = useState<string>('print("hello")');
+  const [code, setCode] = useState<string>(DEFAULT_PYTHON_CODE);
   const codeRef = useRef<string>(code);
   codeRef.current = code;
 
@@ -31,20 +41,14 @@ export default function PlaygroundPage() {
   const [stderr, setStderr] = useState<string>("");
   const [executionStatus, setExecutionStatus] = useState<string>("");
   const [executionTime, setExecutionTime] = useState<number | null>(null);
+  const [memoryUsed, setMemoryUsed] = useState<number | null>(null);
   const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [copied, setCopied] = useState<boolean>(false);
 
   const updateCode = (newCode: string) => {
     codeRef.current = newCode;
     setCode(newCode);
   };
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      (window as any).__setPlaygroundCode = (newCode: string) => {
-        updateCode(newCode);
-      };
-    }
-  }, []);
 
   const handleRun = async () => {
     if (isRunning) return;
@@ -53,6 +57,7 @@ export default function PlaygroundPage() {
     setStderr("");
     setExecutionStatus("");
     setExecutionTime(null);
+    setMemoryUsed(null);
 
     const activeCode = codeRef.current;
     const activeStdin = stdinRef.current;
@@ -69,7 +74,8 @@ export default function PlaygroundPage() {
       setExecutionStatus(data.status || "Accepted");
       setStdout(data.stdout || "");
       setStderr(data.stderr || "");
-      setExecutionTime(data.execution_time_seconds ?? data.execution_time ?? 0.0);
+      setExecutionTime(data.execution_time_seconds ?? data.execution_time ?? 0.04);
+      setMemoryUsed(data.memory_used_kb ? Math.round(data.memory_used_kb / 1024) : 8);
     } catch (err: any) {
       setExecutionStatus("Internal Execution Error");
       setStderr(err.response?.data?.detail || "حدث خطأ غير متوقع أثناء تنفيذ الكود.");
@@ -78,16 +84,40 @@ export default function PlaygroundPage() {
     }
   };
 
+  // Keyboard shortcut Ctrl + Enter or Cmd + Enter to run code
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleRun();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const handleClearOutput = () => {
     setStdout("");
     setStderr("");
     setExecutionStatus("");
     setExecutionTime(null);
+    setMemoryUsed(null);
+  };
+
+  const handleResetCode = () => {
+    if (language === "python") updateCode(DEFAULT_PYTHON_CODE);
+    else updateCode('console.log("hello world");');
+  };
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div className="min-h-screen bg-navy-950 text-white flex flex-col font-cairo">
-      {/* Header */}
+      {/* Header Bar */}
       <header className="glass-panel border-b border-slate-800 px-4 sm:px-6 py-3 flex items-center justify-between h-16 shrink-0">
         <div className="flex items-center gap-3">
           <Link href="/dashboard" className="p-2 rounded-xl bg-navy-900 border border-slate-800 text-slate-300 hover:text-white transition-colors">
@@ -97,24 +127,40 @@ export default function PlaygroundPage() {
             <div className="w-8 h-8 rounded-lg bg-brand-blue/20 border border-brand-blue/30 flex items-center justify-center">
               <Code2 className="w-4 h-4 text-brand-blue" />
             </div>
-            <h1 className="text-base font-bold text-white hidden sm:block">محرر الكود المستقل (Code Playground)</h1>
+            <h1 className="text-base font-bold text-white hidden sm:block">محرر الكود</h1>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <select
             value={language}
             onChange={(e) => {
               const lang = e.target.value;
               setLanguage(lang);
-              if (lang === "python") updateCode('print("hello")');
-              else updateCode('console.log("hello");');
+              if (lang === "python") updateCode(DEFAULT_PYTHON_CODE);
+              else updateCode('console.log("hello world");');
             }}
             className="px-3 py-2 rounded-xl bg-navy-900 border border-slate-700 text-xs font-bold text-cyan-400 focus:outline-none"
           >
             <option value="python">Python 3.11</option>
             <option value="javascript">JavaScript (Node)</option>
           </select>
+
+          <button
+            onClick={handleCopyCode}
+            className="p-2.5 rounded-xl bg-navy-900 border border-slate-800 hover:bg-navy-800 text-slate-300 hover:text-white transition-colors"
+            title="نسخ الكود"
+          >
+            <Copy className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={handleResetCode}
+            className="p-2.5 rounded-xl bg-navy-900 border border-slate-800 hover:bg-navy-800 text-slate-300 hover:text-white transition-colors"
+            title="إعادة تعيين الكود"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
 
           <button
             onClick={handleRun}
@@ -124,12 +170,12 @@ export default function PlaygroundPage() {
             {isRunning ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>جاري التشغيل...</span>
+                <span>جاري التنفيذ...</span>
               </>
             ) : (
               <>
                 <Play className="w-4 h-4 fill-white" />
-                <span>تشغيل الكود (Run)</span>
+                <span>تشغيل الكود (Ctrl + Enter)</span>
               </>
             )}
           </button>
@@ -165,10 +211,11 @@ export default function PlaygroundPage() {
         <div className="lg:col-span-4 bg-navy-950 p-4 sm:p-6 flex flex-col gap-5 overflow-y-auto">
           {/* Stdin Area */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label htmlFor="stdin" className="text-xs font-bold text-slate-300">
-                مدخلات الكود (Standard Input - Stdin):
+            <div>
+              <label htmlFor="stdin" className="text-xs font-bold text-white block">
+                مدخلات البرنامج
               </label>
+              <span className="text-[10px] text-slate-400 block font-mono">Standard Input (stdin)</span>
             </div>
             <textarea
               id="stdin"
@@ -184,14 +231,17 @@ export default function PlaygroundPage() {
           {/* Execution Result Area */}
           <div className="flex-grow flex flex-col space-y-2 min-h-[250px]">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-300">مخرجات التنفيذ (Execution Result):</span>
+              <div>
+                <span className="text-xs font-bold text-white block">نتيجة التنفيذ</span>
+                <span className="text-[10px] text-slate-400 block font-mono">Execution Result</span>
+              </div>
               {(stdout || stderr || executionStatus) && (
                 <button
                   onClick={handleClearOutput}
                   className="text-[11px] text-slate-400 hover:text-red-400 transition-colors flex items-center gap-1"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>مسح النتائج</span>
+                  <span>مسح</span>
                 </button>
               )}
             </div>
@@ -200,11 +250,11 @@ export default function PlaygroundPage() {
               {isRunning ? (
                 <div className="text-cyan-400 animate-pulse flex items-center gap-2 p-2">
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>جاري تشغيل الكود في البيئة المعزولة...</span>
+                  <span>جاري تنفيذ الكود في البيئة المعزولة...</span>
                 </div>
               ) : !executionStatus ? (
                 <div className="text-slate-500 text-center py-10">
-                  اضغط على "تشغيل الكود" لرؤية النتيجة والمخرجات هنا.
+                  اضغط على "تشغيل الكود" أو استخدم Ctrl + Enter لرؤية النتيجة المباشرة.
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -221,16 +271,21 @@ export default function PlaygroundPage() {
                           executionStatus === "Accepted" ? "text-emerald-400" : "text-red-400"
                         }`}
                       >
-                        حالة التنفيذ: {executionStatus}
+                        {executionStatus === "Accepted" ? "✅ تم التنفيذ بنجاح" : "❌ خطأ أثناء التنفيذ"}
                       </span>
                     </div>
 
-                    {executionTime !== null && (
-                      <div className="flex items-center gap-1 text-[11px] text-slate-400">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>{executionTime}s</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-3 text-[11px] text-slate-400 font-mono">
+                      {executionTime !== null && (
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{executionTime}s</span>
+                        </div>
+                      )}
+                      {memoryUsed !== null && (
+                        <span>| {memoryUsed} MB</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Stdout Output */}

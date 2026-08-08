@@ -44,7 +44,7 @@ export default function HomePage() {
             <div className="lg:col-span-7 space-y-5 text-right">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-blue/10 border border-brand-blue/30 text-brand-blue text-xs font-bold glow-blue">
                 <Sparkles className="w-4 h-4" />
-                <span>المنصة التعليمية الأولى لبرمجة الثانوية العامة</span>
+                <span>منصة متخصصة لتعليم البرمجة لطلاب المرحلة الثانوية</span>
               </div>
 
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-tight">
@@ -60,7 +60,7 @@ export default function HomePage() {
                   href="/register"
                   className="px-6 py-3.5 min-h-[44px] rounded-xl bg-gradient-to-r from-brand-blue via-blue-600 to-cyan-500 hover:from-brand-blueHover hover:to-cyan-600 text-white font-bold text-sm shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
                 >
-                  <span>ابسط رحلتك واحجز الآن</span>
+                  <span>ابدأ رحلتك البرمجية الآن</span>
                   <ArrowLeft className="w-4 h-4" />
                 </Link>
 
@@ -91,7 +91,7 @@ export default function HomePage() {
                   </div>
                   <div className="text-xs">
                     <p className="font-bold text-white">تصحيح آلي</p>
-                    <p className="text-slate-300">Judge0 Sandbox</p>
+                    <p className="text-slate-300">مقيم الأكواد الأوتوماتيكي</p>
                   </div>
                 </div>
 
@@ -100,8 +100,8 @@ export default function HomePage() {
                     <Award className="w-3.5 h-3.5 text-amber-400" />
                   </div>
                   <div className="text-xs">
-                    <p className="font-bold text-white">دعم 24/7</p>
-                    <p className="text-slate-300">متابعة واتساب</p>
+                    <p className="font-bold text-white">دعم وتواصل</p>
+                    <p className="text-slate-300">متابعة عبر واتساب</p>
                   </div>
                 </div>
               </div>
@@ -120,8 +120,8 @@ export default function HomePage() {
                 </div>
 
                 <div className="bg-navy-950 rounded-xl p-4 font-mono text-xs text-slate-200 space-y-1.5 dir-ltr text-left border border-slate-800/80">
-                  <p className="text-slate-400"># كورس البرمجة للصف الأول الثانوي</p>
-                  <p><span className="text-purple-400">student_name</span> = <span className="text-emerald-400">"طالب كود جيرني"</span></p>
+                  <p className="text-slate-400"># كورس البرمجة للصف الأول الثانوي - كود بالعربي</p>
+                  <p><span className="text-purple-400">student_name</span> = <span className="text-emerald-400">"طالب كود بالعربي"</span></p>
                   <p><span className="text-purple-400">score</span> = <span className="text-cyan-400">100</span></p>
                   <p className="pt-1"><span className="text-blue-400">if</span> score &gt;= <span className="text-cyan-400">50</span>:</p>
                   <p className="pl-4 text-emerald-400">print("مبروك لقد اجتزت التحدي بنجاح!")</p>
@@ -146,7 +146,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-1.5">عن المحاضر والخبرات</h2>
-            <p className="text-slate-300 text-xs sm:text-sm">تعرف على المحاضر يوسف أحمد صبحي عابدين ورؤية الأكاديمية</p>
+            <p className="text-slate-300 text-xs sm:text-sm">تعرف على المحاضر يوسف أحمد صبحي عابدين ورؤية المنصة</p>
           </div>
 
           <div className="glass-card p-6 md:p-10 rounded-3xl border border-slate-800 shadow-lg">
@@ -161,7 +161,7 @@ export default function HomePage() {
                 <p className="text-xs sm:text-sm font-semibold text-brand-blue">خريج كلية الحاسبات والذكاء الاصطناعي</p>
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-navy-950 border border-slate-800 text-xs text-slate-200">
                   <ShieldCheck className="w-4 h-4 text-green-400" />
-                  <span>محاضر معتمد لمناهج الثانوي</span>
+                  <span>محاضر متخصص لطلاب الثانوي</span>
                 </div>
               </div>
 
@@ -183,16 +183,14 @@ export default function HomePage() {
                   <div className="p-4 rounded-xl bg-navy-950/80 border border-slate-800/80 flex items-start gap-3">
                     <CheckCircle2 className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="font-bold text-white text-xs sm:text-sm">متابعة الاشتراكات</h4>
-                      <p className="text-xs text-slate-300">تفعيل فوري عبر فودافون كاش وانستا باي بكل سهولة.</p>
+                      <h4 className="font-bold text-white text-xs sm:text-sm">متابعة وتفعيل الدفع</h4>
+                      <p className="text-xs text-slate-300">مراجعة سريعة للإيصال وتفعيل الكورس عبر فودافون كاش وانستا باي.</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="pt-1 flex flex-wrap gap-4 text-xs font-semibold text-slate-300">
-                  <span>للتواصل المباشر: <strong className="text-white font-mono" dir="ltr">01001340533</strong></span>
-                  <span>•</span>
-                  <span>رقم إضافي: <strong className="text-white font-mono" dir="ltr">01008168639</strong></span>
+                  <span>للتواصل المباشر عبر واتساب: <a href="https://wa.me/201001340533" target="_blank" rel="noopener noreferrer" className="text-green-400 font-mono hover:underline" dir="ltr">01001340533</a></span>
                 </div>
               </div>
             </div>
@@ -205,7 +203,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-1.5">باقات الأسعار</h2>
-            <p className="text-slate-300 text-xs sm:text-sm max-w-xl mx-auto">اختر الكورس المناسب لصفك الدراسي وابدأ التعلم الفوري</p>
+            <p className="text-slate-300 text-xs sm:text-sm max-w-xl mx-auto">اختر الكورس المناسب لصفك الدراسي وابدأ التعلم</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto items-stretch">
@@ -258,7 +256,7 @@ export default function HomePage() {
                 href="/courses/python-first-secondary"
                 className="w-full py-3.5 min-h-[44px] rounded-xl bg-brand-blue hover:bg-brand-blueHover text-white font-bold text-center text-sm shadow-md transition-all flex items-center justify-center gap-1"
               >
-                <span>تفاصيل الكورس والتسجيل</span>
+                <span>عرض تفاصيل الكورس</span>
                 <ArrowUpRight className="w-4 h-4" />
               </Link>
             </div>
@@ -267,8 +265,8 @@ export default function HomePage() {
             <div className="glass-card p-6 md:p-8 rounded-3xl border border-slate-800 glass-card-hover h-full flex flex-col justify-between space-y-5">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="px-3 py-1 rounded-full bg-cyan-400/20 text-cyan-400 text-xs font-bold border border-cyan-400/30">
-                    الصف الثاني الثانوي (توضيحي)
+                  <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/30">
+                    الصف الثاني الثانوي – قريباً
                   </span>
                   <div className="text-left">
                     <span className="text-2xl font-black text-white">220 <span className="text-xs text-slate-300 font-normal">ج.م</span></span>
@@ -308,13 +306,15 @@ export default function HomePage() {
                 </ul>
               </div>
 
-              <Link
-                href="/courses/web-second-secondary-demo"
+              <a
+                href={`https://wa.me/201001340533?text=${encodeURIComponent("السلام عليكم، أرغب في التسجيل للإشعارات فور إطلاق كورس الصف الثاني الثانوي.")}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="w-full py-3.5 min-h-[44px] rounded-xl bg-navy-900 hover:bg-navy-800 text-cyan-400 font-bold border border-slate-800 text-center text-sm transition-all flex items-center justify-center gap-1"
               >
-                <span>تصفح المحتوى التوضيحي</span>
+                <span>أبلغني عند الإطلاق</span>
                 <ArrowUpRight className="w-4 h-4" />
-              </Link>
+              </a>
             </div>
 
           </div>
@@ -339,18 +339,18 @@ export default function HomePage() {
             <div className="glass-card p-5 rounded-2xl border border-slate-800 text-center space-y-2.5">
               <div className="w-11 h-11 rounded-2xl bg-cyan-400/20 text-cyan-400 flex items-center justify-center font-black text-lg mx-auto">2</div>
               <h3 className="text-sm font-bold text-white">اختر الكورس والدفع</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">ارفع إيصال التحويل عبر فودافون كاش أو انستا باي.</p>
+              <p className="text-xs text-slate-300 leading-relaxed">ارفع إيصال التحويل ليتم مراجعته وتفعيل الكورس لك في أقرب وقت.</p>
             </div>
 
             <div className="glass-card p-5 rounded-2xl border border-slate-800 text-center space-y-2.5">
               <div className="w-11 h-11 rounded-2xl bg-purple-400/20 text-purple-400 flex items-center justify-center font-black text-lg mx-auto">3</div>
               <h3 className="text-sm font-bold text-white">التعلم والتطبيق</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">شاهد الشرح وطبق الكود بداخل محرر Monaco المعزول.</p>
+              <p className="text-xs text-slate-300 leading-relaxed">شاهد الشرح وطبق الكود بداخل محرر Monaco التفاعلي.</p>
             </div>
 
             <div className="glass-card p-5 rounded-2xl border border-slate-800 text-center space-y-2.5">
               <div className="w-11 h-11 rounded-2xl bg-emerald-400/20 text-emerald-400 flex items-center justify-center font-black text-lg mx-auto">4</div>
-              <h3 className="text-sm font-bold text-white">التقييم والفتح الآلي</h3>
+              <h3 className="text-sm font-bold text-white">التقييم والفتح الذكي</h3>
               <p className="text-xs text-slate-300 leading-relaxed">اجتز الكويز ليفتح لك الدرس التالي تلقائياً.</p>
             </div>
           </div>
@@ -369,7 +369,7 @@ export default function HomePage() {
             {[
               {
                 q: "كيف يمكنني دفع قيمة الاشتراك والدخول للكورس؟",
-                a: "بعد إنشاء الحساب واختيار الكورس، يمكنك التحويل عبر انستا باي أو فودافون كاش على رقم المنصة (01001340533)، ثم رفع صورة الإيصال ليتم تفعيل الكورس لك فوراً."
+                a: "بعد إنشاء الحساب واختيار الكورس، يمكنك التحويل عبر انستا باي أو فودافون كاش على رقم المنصة (01001340533)، ثم رفع صورة الإيصال ليتم مراجعته وتفعيل الكورس خلال دقائق إلى 24 ساعة كحد أقصى."
               },
               {
                 q: "هل الكود يشتغل على الموبايل أم يفضل كمبيوتر؟",
@@ -411,13 +411,17 @@ export default function HomePage() {
             <div className="glass-card p-5 rounded-2xl border border-slate-800 space-y-2">
               <Phone className="w-6 h-6 text-brand-blue mx-auto" />
               <h3 className="font-bold text-white text-xs sm:text-sm">الاتصال والواتساب</h3>
-              <p className="text-xs text-slate-300 font-mono" dir="ltr">01001340533 / 01008168639</p>
+              <a href="https://wa.me/201001340533" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-300 font-mono hover:text-green-400 transition-colors block dir-ltr">
+                01001340533 (واتساب)
+              </a>
             </div>
 
             <div className="glass-card p-5 rounded-2xl border border-slate-800 space-y-2">
               <Mail className="w-6 h-6 text-cyan-400 mx-auto" />
               <h3 className="font-bold text-white text-xs sm:text-sm">البريد الإلكتروني</h3>
-              <p className="text-xs text-slate-300 font-mono">support@codejourney.academy</p>
+              <a href="mailto:support@codebelaraby.com" className="text-xs text-slate-300 font-mono hover:text-cyan-300 transition-colors block">
+                support@codebelaraby.com
+              </a>
             </div>
 
             <div className="glass-card p-5 rounded-2xl border border-slate-800 space-y-2">

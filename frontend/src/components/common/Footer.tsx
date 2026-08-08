@@ -15,14 +15,14 @@ export default function Footer() {
                   <Code2 className="w-5 h-5 text-brand-blue" />
                 </div>
               </div>
-              <span className="text-xl font-bold text-white tracking-tight">كود جيرني أكاديمي</span>
+              <span className="text-xl font-bold text-white tracking-tight">كود بالعربي &lt;/&gt;</span>
             </Link>
             <p className="text-xs leading-relaxed text-slate-300">
-              المنصة التعليمية الأولى المتخصصة لطلاب المرحلة الثانوية في مصر. نبسط علوم الحاسب والبرمجة والتفكير المنطقي بالتطبيق العملي المباشر.
+              منصة تعليمية متخصصة لطلاب المرحلة الثانوية في مصر. نبسط علوم الحاسب والتفكير المنطقي بالتطبيق العملي المباشر.
             </p>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-navy-900 border border-slate-800 text-xs text-slate-200">
               <ShieldCheck className="w-4 h-4 text-green-400" />
-              <span>منهج ثانوي مصري معتمد</span>
+              <span>محتوى متوافق مع المناهج الثانوية</span>
             </div>
           </div>
 
@@ -55,11 +55,15 @@ export default function Footer() {
             <ul className="space-y-3 text-xs text-slate-300">
               <li className="flex items-center gap-3">
                 <Phone className="w-4 h-4 text-brand-blue shrink-0" />
-                <span dir="ltr" className="font-mono text-slate-200">01001340533 / 01008168639</span>
+                <a href="https://wa.me/201001340533" target="_blank" rel="noopener noreferrer" className="font-mono text-slate-200 hover:text-green-400 transition-colors" dir="ltr">
+                  01001340533 (واتساب)
+                </a>
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-cyan-400 shrink-0" />
-                <span className="font-mono text-slate-200">support@codejourney.academy</span>
+                <a href="mailto:support@codebelaraby.com" className="font-mono text-slate-200 hover:text-cyan-300 transition-colors">
+                  support@codebelaraby.com
+                </a>
               </li>
               <li className="flex items-center gap-3">
                 <MapPin className="w-4 h-4 text-amber-400 shrink-0" />
@@ -72,7 +76,7 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className="pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-400 gap-4">
-          <p>© {new Date().getFullYear()} كود جيرني أكاديمي. جميع الحقوق محفوظة للمحاضر يوسف أحمد صبحي عابدين.</p>
+          <p>© {new Date().getFullYear()} كود بالعربي. جميع الحقوق محفوظة.</p>
           <div className="flex gap-6">
             <Link href="/terms" className="hover:text-slate-300 transition-colors">الشروط</Link>
             <Link href="/privacy" className="hover:text-slate-300 transition-colors">الخصوصية</Link>

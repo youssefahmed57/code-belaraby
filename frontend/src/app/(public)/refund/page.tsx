@@ -12,7 +12,7 @@ export default function RefundPage() {
         </Link>
         <div>
           <h1 className="text-3xl font-extrabold text-white">سياسة الاسترجاع والاسترداد</h1>
-          <p className="text-sm text-slate-400">منصة كود جيرني أكاديمي (Code Journey Academy)</p>
+          <p className="text-sm text-slate-400">منصة كود بالعربي (Code Belaraby) • <span className="text-brand-blue font-medium">آخر تحديث: أغسطس 2026</span></p>
         </div>
       </div>
 
