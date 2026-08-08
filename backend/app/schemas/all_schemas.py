@@ -102,9 +102,16 @@ class PaymentResponse(BaseModel):
     course_id: str
     amount: Optional[float] = 0.0
     amount_paid: Optional[float] = 0.0
+    amount_expected: Optional[float] = 0.0
+    amount_submitted: Optional[float] = 0.0
     status: str
     payment_method: str
     receipt_url: Optional[str] = None
+    receipt_file_key: Optional[str] = None
+    reference_code: Optional[str] = None
+    sender_identifier: Optional[str] = None
+    student_note: Optional[str] = None
+    created_at: Optional[Any] = None
     transaction_reference: Optional[str] = None
 
     @model_validator(mode="before")
