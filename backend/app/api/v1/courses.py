@@ -7,26 +7,22 @@ from app.db.models import Course, Module, Lesson, User
 from app.api.deps import get_current_user
 from app.schemas.all_schemas import CourseResponse, ModuleResponse, LessonResponse
 
-import time
 from sqlalchemy.orm import selectinload
+from app.core.cache import cache_get, cache_set, cache_invalidate
 
 router = APIRouter(prefix="/courses", tags=["Courses"])
 
-_catalog_cache = {}
-_course_cache = {}
-CACHE_TTL = 15.0 # seconds
+CATALOG_CACHE_TTL = 300 # 5 minutes per user recommendation
 
 @router.get("", response_model=List[CourseResponse])
 async def list_courses(
     grade_level: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    now = time.time()
-    cache_key = grade_level or "all"
-    if cache_key in _catalog_cache:
-        cached_ts, cached_data = _catalog_cache[cache_key]
-        if now - cached_ts < CACHE_TTL:
-            return cached_data
+    cache_key = f"catalog:{grade_level or 'all'}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     stmt = select(Course).where(Course.status == "published", Course.visibility == "public")
     if grade_level:
@@ -35,8 +31,8 @@ async def list_courses(
 
     res = await db.execute(stmt)
     courses = res.scalars().all()
-    result = [CourseResponse.model_validate(c) for c in courses]
-    _catalog_cache[cache_key] = (now, result)
+    result = [CourseResponse.model_validate(c).model_dump() for c in courses]
+    cache_set(cache_key, result, ttl_seconds=CATALOG_CACHE_TTL)
     return result
 
 @router.get("/my-enrolments", response_model=List[CourseResponse])
@@ -62,11 +58,10 @@ async def list_my_enrolled_courses(
 
 @router.get("/{slug}")
 async def get_course_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
-    now = time.time()
-    if slug in _course_cache:
-        cached_ts, cached_data = _course_cache[slug]
-        if now - cached_ts < CACHE_TTL:
-            return cached_data
+    cache_key = f"course_slug:{slug}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     stmt = (
         select(Course)
@@ -101,5 +96,5 @@ async def get_course_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
 
     course_dict = CourseResponse.model_validate(course).model_dump()
     course_dict["modules"] = modules_data
-    _course_cache[slug] = (now, course_dict)
+    cache_set(cache_key, course_dict, ttl_seconds=CATALOG_CACHE_TTL)
     return course_dict
