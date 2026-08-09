@@ -15,7 +15,12 @@ async def get_signed_token(
     video_id: str,
     current_user: User = Depends(get_current_user)
 ):
-    info = get_video_playback_info(video_id, current_user.id)
+    info = get_video_playback_info(
+        video_id=video_id,
+        student_id=current_user.id,
+        student_name=current_user.arabic_name or current_user.full_name or "طالب كود بالعربي",
+        phone_number=current_user.phone_number or ""
+    )
     return info
 
 @router.get("/stream-mock/{video_id}", response_class=HTMLResponse)
@@ -23,11 +28,14 @@ async def stream_mock_video(
     video_id: str,
     token: str = Query(...),
     student_name: str = Query(default="طالب كود بالعربي"),
-    student_phone: str = Query(default="Code Belaraby Student")
+    student_code: str = Query(default="ST-1001"),
+    student_phone: str = Query(default="010***0000")
 ):
     """
-    Renders a secure HTML5 Video Player container with dynamic moving watermark overlay and nodownload protection.
+    Renders a secure HTML5 Video Player container with dynamic moving watermark overlay,
+    DOM anti-tamper observer, and HLS signed token protection.
     """
+    watermark_text = f"🔒 {student_name} • {student_code} • {student_phone} • كود بالعربي"
     return f"""
     <!DOCTYPE html>
     <html dir="rtl">
@@ -42,11 +50,11 @@ async def stream_mock_video(
           position: absolute;
           top: 15%;
           right: 15%;
-          color: rgba(255, 255, 255, 0.45);
-          font-size: 13px;
+          color: rgba(255, 255, 255, 0.5);
+          font-size: 12px;
           font-weight: 700;
           pointer-events: none;
-          background: rgba(15, 23, 42, 0.65);
+          background: rgba(15, 23, 42, 0.7);
           padding: 6px 14px;
           border-radius: 12px;
           border: 1px solid rgba(255, 255, 255, 0.15);
@@ -54,40 +62,43 @@ async def stream_mock_video(
           transition: all 1.2s ease-in-out;
           z-index: 99;
           letter-spacing: 0.5px;
+          white-space: nowrap;
         }}
         .security-badge {{
           position: absolute;
           bottom: 12px;
           right: 12px;
-          background: rgba(15, 23, 42, 0.8);
+          background: rgba(15, 23, 42, 0.85);
           color: #38bdf8;
           font-size: 10px;
           font-weight: bold;
-          padding: 4px 8px;
+          padding: 4px 10px;
           border-radius: 8px;
-          border: 1px solid rgba(56, 189, 248, 0.2);
+          border: 1px solid rgba(56, 189, 248, 0.25);
           pointer-events: none;
           z-index: 100;
         }}
       </style>
     </head>
     <body oncontextmenu="return false;" ondragstart="return false;">
-      <div class="video-container">
+      <div id="videoWrap" class="video-container">
         <div id="dynamicWatermark" class="watermark">
-          🔒 {student_name} ({student_phone}) • كود بالعربي
+          {watermark_text}
         </div>
         <div class="security-badge">
-          🛡️ مشغل محمي بـ HLS & Dynamic Watermark
+          🛡️ HLS Signed Stream & Dynamic Watermark
         </div>
-        <video controls controlsList="nodownload noplaybackrate" disablePictureInPicture oncontextmenu="return false;">
+        <video id="mainVideo" controls controlsList="nodownload noplaybackrate" disablePictureInPicture oncontextmenu="return false;">
           <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4">
           متصفحك لا يدعم مشغل الفيديو.
         </video>
       </div>
 
       <script>
-        // Dynamic Floating Watermark Positioning Engine
+        // 1. Dynamic Floating Watermark Positioning Engine
         const wm = document.getElementById("dynamicWatermark");
+        const video = document.getElementById("mainVideo");
+        const wrap = document.getElementById("videoWrap");
         const positions = [
           {{ top: '10%', right: '10%' }},
           {{ top: '70%', right: '15%' }},
@@ -98,11 +109,24 @@ async def stream_mock_video(
         ];
         let idx = 0;
         setInterval(() => {{
-          idx = (idx + 1) % positions.length;
-          wm.style.top = positions[idx].top;
-          wm.style.right = positions[idx].right;
-          wm.style.opacity = Math.random() > 0.5 ? "0.6" : "0.35";
+          if (wm) {{
+            idx = (idx + 1) % positions.length;
+            wm.style.top = positions[idx].top;
+            wm.style.right = positions[idx].right;
+            wm.style.opacity = Math.random() > 0.5 ? "0.6" : "0.35";
+          }}
         }}, 6000);
+
+        // 2. Anti-DOM Tamper Protection (MutationObserver)
+        const observer = new MutationObserver(() => {{
+          const checkWm = document.getElementById("dynamicWatermark");
+          if (!checkWm || checkWm.style.display === "none" || checkWm.style.visibility === "hidden" || checkWm.style.opacity === "0") {{
+            if (video) video.pause();
+            alert("⚠️ تحذير أمني: تم رصد محاولة تعديل العلامة المائية. تم إيقاف الفيديو لحماية المحتوى.");
+            location.reload();
+          }}
+        }});
+        observer.observe(wrap, {{ childList: true, subtree: true, attributes: true }});
       </script>
     </body>
     </html>

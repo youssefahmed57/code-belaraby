@@ -47,11 +47,24 @@ export default function LessonReaderPage({ params }: { params: { id: string } })
     }
   }, []);
 
+  const [videoStreamUrl, setVideoStreamUrl] = useState<string>("");
+
   useEffect(() => {
     async function fetchLesson() {
       try {
         const res = await api.get(`/lessons/${params.id}`);
         setLesson(res.data);
+
+        // Fetch signed playback info for lesson video
+        const videoAssetId = res.data?.video_asset_id || "demo_video_lesson_1";
+        try {
+          const vRes = await api.get(`/videos/token/${videoAssetId}`);
+          if (vRes.data?.stream_url) {
+            setVideoStreamUrl(vRes.data.stream_url);
+          }
+        } catch (vErr) {
+          console.error("Signed video token fetch error:", vErr);
+        }
       } catch (err: any) {
         console.error(err);
       } finally {
@@ -227,7 +240,7 @@ export default function LessonReaderPage({ params }: { params: { id: string } })
           <div className="max-w-5xl mx-auto space-y-6">
             <div className="aspect-video w-full rounded-2xl sm:rounded-3xl overflow-hidden glass-panel border border-slate-800 relative bg-black">
               <iframe
-                src={`/api/v1/videos/stream-mock/demo_video_lesson_1?token=mock_signed_token&student_name=${encodeURIComponent(studentInfo.name)}&student_phone=${encodeURIComponent(studentInfo.phone)}`}
+                src={videoStreamUrl || `/api/v1/videos/stream-mock/demo_video_lesson_1?token=mock_signed_token&student_name=${encodeURIComponent(studentInfo.name)}&student_phone=${encodeURIComponent(studentInfo.phone)}`}
                 className="w-full h-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen

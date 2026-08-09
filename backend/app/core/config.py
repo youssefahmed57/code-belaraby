@@ -54,11 +54,14 @@ class Settings(BaseSettings):
     USE_MOCK_JUDGE0: bool = True
     ALLOW_LOCAL_RUNNER_IN_PROD: bool = False
 
-    # Cloudflare Stream Video
+    # Cloudflare & Bunny Stream Video HLS
     CLOUDFLARE_STREAM_ACCOUNT_ID: str = "mock_cf_account"
     CLOUDFLARE_STREAM_API_TOKEN: str = "mock_cf_token"
     CLOUDFLARE_STREAM_KEY_ID: str = "mock_cf_key_id"
     CLOUDFLARE_STREAM_PEM_KEY: str = "mock_cf_pem_key"
+    BUNNY_STREAM_LIBRARY_ID: str = "mock_bunny_lib_id"
+    BUNNY_STREAM_API_KEY: str = "mock_bunny_api_key"
+    BUNNY_STREAM_TOKEN_AUTH_KEY: str = "mock_bunny_token_key"
     USE_MOCK_VIDEO_PROVIDER: bool = True
 
     # Supabase Storage & Database
