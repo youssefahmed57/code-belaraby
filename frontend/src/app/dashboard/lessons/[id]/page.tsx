@@ -25,6 +25,28 @@ export default function LessonReaderPage({ params }: { params: { id: string } })
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   const [quizResult, setQuizResult] = useState<any>(null);
 
+  const [studentInfo, setStudentInfo] = useState<{ name: string; phone: string }>({
+    name: "طالب كود بالعربي",
+    phone: "01000000000"
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("user_info");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setStudentInfo({
+            name: parsed.arabic_name || parsed.full_name || "طالب كود بالعربي",
+            phone: parsed.phone_number || "01000000000"
+          });
+        } catch (e) {
+          console.error("Error parsing user info:", e);
+        }
+      }
+    }
+  }, []);
+
   useEffect(() => {
     async function fetchLesson() {
       try {
@@ -205,7 +227,7 @@ export default function LessonReaderPage({ params }: { params: { id: string } })
           <div className="max-w-5xl mx-auto space-y-6">
             <div className="aspect-video w-full rounded-2xl sm:rounded-3xl overflow-hidden glass-panel border border-slate-800 relative bg-black">
               <iframe
-                src={`/api/v1/videos/stream-mock/demo_video_lesson_1?token=mock_signed_token`}
+                src={`/api/v1/videos/stream-mock/demo_video_lesson_1?token=mock_signed_token&student_name=${encodeURIComponent(studentInfo.name)}&student_phone=${encodeURIComponent(studentInfo.phone)}`}
                 className="w-full h-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
