@@ -8,6 +8,7 @@ from fastapi import HTTPException, Request, status
 
 from app.core.cache import get_redis_client
 from app.core.config import settings
+from app.core.security import decode_access_token
 
 
 _local_rate_limit_store: DefaultDict[str, list[float]] = defaultdict(list)
@@ -39,7 +40,22 @@ def _redis_key(rule: RateLimitRule, scope_key: str) -> str:
 
 
 def _scope_key(request: Request) -> str:
-    return get_rate_limit_scope_ip(request)
+    ip_scope = get_rate_limit_scope_ip(request)
+    token = None
+    authorization = request.headers.get("authorization", "")
+    if authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+    elif request.cookies.get("access_token", "").lower().startswith("bearer "):
+        token = request.cookies.get("access_token", "").split(" ", 1)[1].strip()
+
+    if not token:
+        return ip_scope
+
+    payload = decode_access_token(token)
+    subject = str(payload.get("sub")).strip() if payload and payload.get("sub") else ""
+    if not subject:
+        return ip_scope
+    return f"{ip_scope}:user:{subject}"
 
 
 def _parse_ip(value: str) -> Optional[ipaddress._BaseAddress]:

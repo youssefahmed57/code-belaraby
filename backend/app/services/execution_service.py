@@ -1,4 +1,3 @@
-import asyncio
 import os
 import subprocess
 import sys
@@ -58,8 +57,6 @@ class ExecutionService:
         temp_path = ""
         file_suffix = ".py" if normalized_language == "python" else ".js"
         command = [sys.executable, temp_path] if normalized_language == "python" else ["node", temp_path]
-        # In dev/test the local runner is explicitly unsafe, so inherit the process
-        # environment to preserve runtime behavior for Python/Node on Windows.
         safe_env = os.environ.copy()
         safe_env.update(
             {
@@ -104,8 +101,9 @@ class ExecutionService:
 
             stdout = stdout_bytes.decode("utf-8", errors="replace")
             stderr = stderr_bytes.decode("utf-8", errors="replace")
-            if len(stdout) > 50_000:
-                stdout = stdout[:50_000] + "\n[output truncated at 50KB]"
+            if len(stdout.encode("utf-8")) > settings.MAX_EXECUTION_OUTPUT_BYTES:
+                truncated = stdout.encode("utf-8")[: settings.MAX_EXECUTION_OUTPUT_BYTES].decode("utf-8", errors="ignore")
+                stdout = truncated + "\n[output truncated at 50KB]"
 
             if process.returncode != 0:
                 status_text = "Runtime Error"
@@ -157,9 +155,17 @@ class ExecutionService:
             "enable_network": False,
         }
 
+        headers = {}
+        if settings.JUDGE0_API_KEY:
+            headers["X-Auth-Token"] = settings.JUDGE0_API_KEY
+
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
-                response = await client.post(f"{settings.JUDGE0_URL.rstrip('/')}/submissions?wait=true", json=payload)
+                response = await client.post(
+                    f"{settings.JUDGE0_URL.rstrip('/')}/submissions?wait=true",
+                    json=payload,
+                    headers=headers,
+                )
         except Exception as exc:
             raise ExecutionProviderUnavailable("Judge0 is unavailable.") from exc
 
@@ -184,8 +190,7 @@ class ExecutionService:
         time_limit: float = 2.0,
         memory_limit: int = 128,
     ) -> Dict[str, Any]:
-        judge0_configured = bool(settings.JUDGE0_URL)
-        if judge0_configured:
+        if settings.JUDGE0_URL:
             try:
                 return await ExecutionService.run_code_with_judge0(
                     language=language,
@@ -215,26 +220,18 @@ class ExecutionService:
     @staticmethod
     async def check_execution_provider_health() -> Dict[str, Any]:
         if not settings.JUDGE0_URL:
-            return {
-                "configured": False,
-                "healthy": False,
-                "provider": "judge0",
-            }
+            return {"configured": False, "healthy": False, "provider": "judge0"}
+
+        headers = {}
+        if settings.JUDGE0_API_KEY:
+            headers["X-Auth-Token"] = settings.JUDGE0_API_KEY
 
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(f"{settings.JUDGE0_URL.rstrip('/')}/languages")
-            return {
-                "configured": True,
-                "healthy": response.status_code == 200,
-                "provider": "judge0",
-            }
+                response = await client.get(f"{settings.JUDGE0_URL.rstrip('/')}/languages", headers=headers)
+            return {"configured": True, "healthy": response.status_code == 200, "provider": "judge0"}
         except Exception:
-            return {
-                "configured": True,
-                "healthy": False,
-                "provider": "judge0",
-            }
+            return {"configured": True, "healthy": False, "provider": "judge0"}
 
 
 async def execute_code_sandboxed(

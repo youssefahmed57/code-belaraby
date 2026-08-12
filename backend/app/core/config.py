@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     COOKIE_DOMAIN: str = "localhost"
     COOKIE_SAMESITE: str = "lax"
     SECURE_COOKIES: bool = False
+    HEALTH_MONITOR_TOKEN: str = ""
 
     DATABASE_URL: str = "sqlite+aiosqlite:///./code_journey.db"
     SYNC_DATABASE_URL: str = "sqlite:///./code_journey.db"
@@ -115,6 +116,16 @@ class Settings(BaseSettings):
     PASSWORD_RESET_SMTP_FROM: Optional[str] = None
     PASSWORD_RESET_SMS_WEBHOOK_URL: Optional[str] = None
     PASSWORD_RESET_SMS_WEBHOOK_TOKEN: Optional[str] = None
+    PASSWORD_MIN_LENGTH: int = 8
+    PASSWORD_REQUIRE_DIGIT: bool = True
+    MAX_EXECUTION_SOURCE_BYTES: int = 64 * 1024
+    MAX_EXECUTION_STDIN_BYTES: int = 16 * 1024
+    MAX_EXECUTION_LANGUAGE_LENGTH: int = 32
+    MAX_EXECUTION_PROBLEM_ID_LENGTH: int = 64
+    MAX_EXECUTION_TEST_CASES_PER_REQUEST: int = 20
+    MAX_EXECUTION_REQUEST_DEADLINE_SECONDS: int = 20
+    MAX_EXECUTION_OUTPUT_BYTES: int = 50_000
+    BACKUP_RETENTION_DAYS: int = 14
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
@@ -269,6 +280,9 @@ class Settings(BaseSettings):
             except ValueError:
                 continue
         return networks
+
+    def detailed_health_requires_token(self) -> bool:
+        return self.ENVIRONMENT in {"staging", "production"}
 
 
 settings = Settings(

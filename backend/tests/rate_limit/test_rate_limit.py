@@ -105,6 +105,73 @@ async def test_forged_x_forwarded_for_cannot_bypass_code_run_rate_limit():
 
 
 @pytest.mark.asyncio
+async def test_authenticated_rate_limits_are_scoped_per_user_not_only_per_ip():
+    login_rule = _rule_for("POST", "/api/v1/auth/login")
+    code_rule = _rule_for("POST", "/api/v1/coding-problems/run")
+    original_login_limit = login_rule.limit
+    original_code_limit = code_rule.limit
+    login_rule.limit = 10
+    code_rule.limit = 1
+    try:
+        async with _client("198.51.100.13") as client:
+            first_login = await client.post(
+                "/api/v1/auth/login",
+                json={"identifier": "01011111111", "password": "StudentPass123!@#"},
+            )
+            assert first_login.status_code == 200
+            first_session_token = first_login.cookies.get("session_token") or ""
+            first_headers = {
+                "Authorization": f"Bearer {first_login.json()['access_token']}",
+                "X-Session-Token": first_session_token,
+            }
+
+            second_phone = "01077778888"
+            register = await client.post(
+                "/api/v1/auth/register",
+                json={
+                    "arabic_name": "طالب معدل مختلف",
+                    "phone_number": second_phone,
+                    "password": "StudentPass123",
+                    "password_confirm": "StudentPass123",
+                    "grade_level": "first_secondary",
+                },
+            )
+            assert register.status_code == 200
+            second_session_token = register.cookies.get("session_token") or ""
+            second_headers = {
+                "Authorization": f"Bearer {register.json()['access_token']}",
+                "X-Session-Token": second_session_token,
+            }
+
+            client.cookies.set("session_token", first_session_token)
+            first_ok = await client.post(
+                "/api/v1/coding-problems/run",
+                json={"language": "python", "code": 'print("first")', "stdin": ""},
+                headers=first_headers,
+            )
+            assert first_ok.status_code == 200
+
+            client.cookies.set("session_token", second_session_token)
+            second_ok = await client.post(
+                "/api/v1/coding-problems/run",
+                json={"language": "python", "code": 'print("second")', "stdin": ""},
+                headers=second_headers,
+            )
+            assert second_ok.status_code == 200
+
+            client.cookies.set("session_token", first_session_token)
+            first_blocked = await client.post(
+                "/api/v1/coding-problems/run",
+                json={"language": "python", "code": 'print("blocked")', "stdin": ""},
+                headers=first_headers,
+            )
+            assert first_blocked.status_code == 429
+    finally:
+        login_rule.limit = original_login_limit
+        code_rule.limit = original_code_limit
+
+
+@pytest.mark.asyncio
 async def test_trusted_proxy_uses_last_untrusted_hop():
     request = Request(
         {

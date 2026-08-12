@@ -1,8 +1,11 @@
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.db.models import CodeSubmission, LessonProgress, SubmissionTestResult, TestCase, User
 from app.schemas.all_schemas import ExecutionResponse, RunCodeRequest, SubmitProblemRequest
@@ -18,6 +21,20 @@ from app.services.unlock_service import evaluate_lesson_completion
 router = APIRouter(prefix="/coding-problems", tags=["Coding Execution"])
 
 
+def _validate_execution_payload(language: str, source_code: str, stdin: str = "", problem_id: str | None = None) -> None:
+    normalized_language = (language or "").strip().lower()
+    if not normalized_language or len(normalized_language) > settings.MAX_EXECUTION_LANGUAGE_LENGTH:
+        raise HTTPException(status_code=422, detail="قيمة اللغة المطلوبة غير صالحة.")
+    if normalized_language not in SUPPORTED_EXECUTION_LANGUAGES:
+        raise HTTPException(status_code=400, detail="اللغة المطلوبة غير مدعومة.")
+    if len((source_code or "").encode("utf-8")) > settings.MAX_EXECUTION_SOURCE_BYTES:
+        raise HTTPException(status_code=413, detail="حجم الكود المرسل يتجاوز الحد الأقصى المسموح به.")
+    if len((stdin or "").encode("utf-8")) > settings.MAX_EXECUTION_STDIN_BYTES:
+        raise HTTPException(status_code=413, detail="حجم بيانات الإدخال يتجاوز الحد الأقصى المسموح به.")
+    if problem_id is not None and len(problem_id) > settings.MAX_EXECUTION_PROBLEM_ID_LENGTH:
+        raise HTTPException(status_code=422, detail="معرف المسألة غير صالح.")
+
+
 @router.post("/run", response_model=ExecutionResponse)
 async def run_playground_code(
     req: RunCodeRequest,
@@ -26,8 +43,7 @@ async def run_playground_code(
     if current_user.status != "active":
         raise HTTPException(status_code=403, detail="الحساب غير مفعل.")
 
-    if req.language.lower() not in SUPPORTED_EXECUTION_LANGUAGES:
-        raise HTTPException(status_code=400, detail="اللغة المطلوبة غير مدعومة.")
+    _validate_execution_payload(req.language, req.code or "", req.stdin or "")
 
     try:
         result = await execute_code_sandboxed(
@@ -60,6 +76,7 @@ async def submit_problem_solution(
     if current_user.status != "active":
         raise HTTPException(status_code=403, detail="الحساب غير مفعل.")
 
+    _validate_execution_payload(req.language, req.code, problem_id=req.problem_id)
     problem, lesson = await require_accessible_problem(
         db=db,
         student_id=current_user.id,
@@ -68,10 +85,21 @@ async def submit_problem_solution(
     )
 
     test_cases = (
-        await db.execute(
-            select(TestCase).where(TestCase.problem_id == problem.id).order_by(TestCase.order)
-        )
+        await db.execute(select(TestCase).where(TestCase.problem_id == problem.id).order_by(TestCase.order))
     ).scalars().all()
+    if len(test_cases) > settings.MAX_EXECUTION_TEST_CASES_PER_REQUEST:
+        raise HTTPException(
+            status_code=422,
+            detail="عدد حالات الاختبار لهذه المسألة يتجاوز الحد الآمن للتنفيذ المباشر عبر الطلب الحالي.",
+        )
+
+    max_request_budget = settings.MAX_EXECUTION_REQUEST_DEADLINE_SECONDS
+    worst_case_budget = len(test_cases) * max(problem.time_limit_seconds, 1)
+    if worst_case_budget > max_request_budget:
+        raise HTTPException(
+            status_code=422,
+            detail="تنفيذ هذه المسألة يتطلب زمناً أطول من الحد المسموح به للطلب المباشر.",
+        )
 
     submission = CodeSubmission(
         student_id=current_user.id,
@@ -85,11 +113,17 @@ async def submit_problem_solution(
     db.add(submission)
     await db.flush()
 
+    deadline = time.monotonic() + settings.MAX_EXECUTION_REQUEST_DEADLINE_SECONDS
     passed_count = 0
     total_time = 0.0
     final_status = "Accepted"
 
     for test_case in test_cases:
+        if time.monotonic() >= deadline:
+            raise HTTPException(
+                status_code=503,
+                detail="تم إيقاف التنفيذ لأن الطلب تجاوز المهلة القصوى المسموح بها.",
+            )
         try:
             execution_result = await execute_code_sandboxed(
                 language=req.language,

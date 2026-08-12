@@ -1,11 +1,6 @@
-name: Deploy Production to VPS
+name: Legacy SSH Deploy (Manual Only)
 
 on:
-  workflow_run:
-    workflows:
-      - Verify Platform
-    types:
-      - completed
   workflow_dispatch:
     inputs:
       target_sha:
@@ -18,38 +13,13 @@ permissions:
   actions: read
 
 jobs:
-  resolve-target:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
+  verify-target:
     runs-on: ubuntu-latest
-    outputs:
-      target_sha: ${{ steps.resolve.outputs.target_sha }}
     steps:
-      - name: Resolve target SHA
-        id: resolve
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            target_sha="${{ github.event.inputs.target_sha }}"
-          else
-            target_sha="${{ github.event.workflow_run.head_sha }}"
-          fi
-          if [[ -z "${target_sha}" ]]; then
-            echo "Unable to determine deployment SHA." >&2
-            exit 1
-          fi
-          echo "target_sha=${target_sha}" >> "$GITHUB_OUTPUT"
-
       - name: Verify target SHA passed Verify Platform on main
         uses: actions/github-script@v7
         env:
-          TARGET_SHA: ${{ steps.resolve.outputs.target_sha }}
+          TARGET_SHA: ${{ github.event.inputs.target_sha }}
         with:
           script: |
             const targetSha = process.env.TARGET_SHA;
@@ -71,167 +41,17 @@ jobs:
 
             if (!verifiedRun) {
               core.setFailed(
-                `Refusing deployment: commit ${targetSha} has not completed a successful Verify Platform run on main.`
+                `Refusing legacy SSH deployment workflow for ${targetSha}: Verify Platform has not succeeded on main.`
               );
               return;
             }
 
-            core.info(`Verified successful CI run ${verifiedRun.id} for ${targetSha}.`);
+            core.notice(
+              `Verified successful CI run ${verifiedRun.id} for ${targetSha}. ` +
+              "Production deployments are managed by Coolify; this legacy SSH workflow is retained for manual reference only."
+            );
 
-  deploy:
-    needs: resolve-target
-    runs-on: ubuntu-latest
-    environment: production
-    env:
-      TARGET_SHA: ${{ needs.resolve-target.outputs.target_sha }}
-      PRODUCTION_PUBLIC_URL: ${{ secrets.PRODUCTION_PUBLIC_URL }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.resolve-target.outputs.target_sha }}
-
-      - name: Validate required deployment secrets
-        shell: bash
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          VPS_PORT: ${{ secrets.VPS_PORT }}
-          PRODUCTION_PUBLIC_URL: ${{ secrets.PRODUCTION_PUBLIC_URL }}
+      - name: Stop legacy workflow before SSH deployment
         run: |
-          set -euo pipefail
-          for required_var in VPS_HOST VPS_USER SSH_PRIVATE_KEY PRODUCTION_PUBLIC_URL; do
-            if [[ -z "${!required_var:-}" ]]; then
-              echo "Missing required deployment secret: ${required_var}" >&2
-              exit 1
-            fi
-          done
-          if [[ -z "${VPS_PORT:-}" ]]; then
-            echo "VPS_PORT not set; defaulting to 22."
-          fi
-
-      - name: Validate merged Docker config
-        run: docker compose -f docker-compose.yml -f docker-compose.production.yml config
-
-      - name: Deploy verified SHA to VPS
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          TARGET_SHA: ${{ needs.resolve-target.outputs.target_sha }}
-          PRODUCTION_PUBLIC_URL: ${{ secrets.PRODUCTION_PUBLIC_URL }}
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script_stop: true
-          envs: TARGET_SHA,PRODUCTION_PUBLIC_URL
-          script: |
-            set -euo pipefail
-
-            REPO_CANDIDATES="/root/code-belaraby /var/www/code-belaraby $HOME/code-belaraby"
-            REPO_DIR=""
-            for candidate in $REPO_CANDIDATES; do
-              if [ -d "$candidate/.git" ]; then
-                remote_url="$(git -C "$candidate" remote get-url origin 2>/dev/null || true)"
-                case "$remote_url" in
-                  *youssefahmed57/code-belaraby*)
-                    REPO_DIR="$candidate"
-                    break
-                    ;;
-                esac
-              fi
-            done
-
-            if [ -z "$REPO_DIR" ]; then
-              echo "Unable to locate the production repository checkout on the VPS." >&2
-              exit 1
-            fi
-
-            cd "$REPO_DIR"
-
-            COMPOSE_CMD="docker compose -f docker-compose.yml -f docker-compose.production.yml"
-            PREVIOUS_SHA="$(git rev-parse HEAD)"
-            ROLLBACK_NEEDED=0
-
-            rollback() {
-              if [ "$ROLLBACK_NEEDED" != "1" ]; then
-                return
-              fi
-              echo "Deployment failed after code update. Rolling back to ${PREVIOUS_SHA}." >&2
-              git switch --detach "$PREVIOUS_SHA" || true
-              $COMPOSE_CMD up -d --build --remove-orphans || true
-            }
-
-            trap rollback ERR
-
-            if [ -n "$(git status --porcelain)" ]; then
-              echo "Production checkout has uncommitted changes. Refusing to deploy over a dirty tree." >&2
-              git status --short
-              exit 1
-            fi
-
-            git switch main
-            git fetch origin
-            ORIGIN_SHA="$(git rev-parse origin/main)"
-            if [ "$ORIGIN_SHA" != "$TARGET_SHA" ]; then
-              echo "origin/main ($ORIGIN_SHA) does not match verified target SHA ($TARGET_SHA)." >&2
-              exit 1
-            fi
-
-            git pull --ff-only origin main
-            DEPLOYED_SHA="$(git rev-parse HEAD)"
-            if [ "$DEPLOYED_SHA" != "$TARGET_SHA" ]; then
-              echo "Checked-out SHA ($DEPLOYED_SHA) does not match target SHA ($TARGET_SHA)." >&2
-              exit 1
-            fi
-
-            ROLLBACK_NEEDED=1
-
-            $COMPOSE_CMD config > /tmp/code-belaraby.production.compose.txt
-
-            BACKUP_PATH="$($COMPOSE_CMD run --rm --entrypoint sh backup-worker -c '
-              set -euo pipefail
-              mkdir -p /backups/manual
-              backup_file="/backups/manual/predeploy_$(date +%Y%m%d_%H%M%S).sql"
-              pg_dump -U "$PGUSER" "$PGDATABASE" > "$backup_file"
-              test -s "$backup_file"
-              printf "%s" "$backup_file"
-            ')"
-            if [ -z "$BACKUP_PATH" ]; then
-              echo "Backup command did not return a backup file path." >&2
-              exit 1
-            fi
-
-            DUPLICATE_COUNT="$($COMPOSE_CMD exec -T postgres sh -c '
-              set -euo pipefail
-              psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "
-                SELECT COUNT(*) FROM (
-                  SELECT student_id, course_id
-                  FROM enrolments
-                  GROUP BY student_id, course_id
-                  HAVING COUNT(*) > 1
-                ) duplicate_enrolments;
-              "
-            ')"
-            if [ "${DUPLICATE_COUNT}" != "0" ]; then
-              echo "Duplicate enrolments detected. Resolve duplicates before applying migrations." >&2
-              exit 1
-            fi
-
-            $COMPOSE_CMD run --rm --entrypoint sh backend -c 'alembic upgrade head'
-
-            $COMPOSE_CMD up -d --build --remove-orphans
-
-            curl -fsS http://127.0.0.1:8000/health > /tmp/code-belaraby.health.json
-            curl -fsS http://127.0.0.1:8000/ready > /tmp/code-belaraby.ready.json
-            curl -fsSI "$PRODUCTION_PUBLIC_URL" > /tmp/code-belaraby.public-headers.txt
-            curl -fsS "${PRODUCTION_PUBLIC_URL%/}/health" > /tmp/code-belaraby.public-health.json
-
-            FINAL_SHA="$(git rev-parse HEAD)"
-            if [ "$FINAL_SHA" != "$TARGET_SHA" ]; then
-              echo "Final VPS SHA ($FINAL_SHA) drifted from target SHA ($TARGET_SHA)." >&2
-              exit 1
-            fi
-
-            ROLLBACK_NEEDED=0
-            echo "Deployment complete for $FINAL_SHA"
+          echo "Coolify is the production source of truth."
+          echo "This legacy SSH workflow remains manual-only to avoid conflicting deployment architectures."

@@ -13,6 +13,7 @@ interface Course {
   description: string;
   grade_level: string;
   price: number;
+  discount_price?: number | null;
   instructor_name: string;
   cover_image_url?: string;
   total_modules?: number;
@@ -218,9 +219,20 @@ function CoursesContent() {
                 <div className="p-6 pt-0 space-y-4">
                   <div className="flex items-baseline justify-between">
                     <span className="text-xs text-slate-400">سعر الاشتراك</span>
-                    <span className="text-2xl font-black text-white">
-                      {course.price} <span className="text-xs text-slate-400 font-normal">جنية مصري</span>
-                    </span>
+                    <div className="text-left">
+                      {course.discount_price != null ? (
+                        <>
+                          <div className="text-xs text-slate-500 line-through">{course.price} جنيه</div>
+                          <span className="text-2xl font-black text-emerald-400">
+                            {course.discount_price} <span className="text-xs text-slate-400 font-normal">جنية مصري</span>
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-2xl font-black text-white">
+                          {course.price} <span className="text-xs text-slate-400 font-normal">جنية مصري</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <Link

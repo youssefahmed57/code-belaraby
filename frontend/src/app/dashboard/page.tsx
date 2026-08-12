@@ -257,7 +257,7 @@ export default function StudentDashboard() {
                       <span className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold">
                         {course.grade_level === "first_secondary" ? "الصف الأول الثانوي" : "الصف الثاني الثانوي"}
                       </span>
-                      <span className="text-sm font-extrabold text-emerald-400">{course.discount_price || course.price} ج.م</span>
+                      <span className="text-sm font-extrabold text-emerald-400">{course.discount_price ?? course.price} ج.م</span>
                     </div>
                     <h3 className="text-lg font-bold text-white">{course.title}</h3>
                     <p className="text-xs text-slate-400 leading-relaxed">{course.short_description}</p>

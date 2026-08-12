@@ -120,3 +120,29 @@ async def test_local_runner_rejected_in_staging_and_production():
     finally:
         settings.ENVIRONMENT = original_environment
         settings.ALLOW_UNSAFE_LOCAL_CODE_EXECUTION = original_allow
+
+
+@pytest.mark.asyncio
+async def test_execution_rejects_oversized_source_and_stdin(async_client: AsyncClient):
+    login_res = await async_client.post(
+        "/api/v1/auth/login",
+        json={"identifier": "01011111111", "password": "StudentPass123!@#"},
+    )
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    oversized_code = "print('x')\n" + ("#" * (settings.MAX_EXECUTION_SOURCE_BYTES + 1))
+    oversized_code_response = await async_client.post(
+        "/api/v1/coding-problems/run",
+        json={"language": "python", "code": oversized_code, "stdin": ""},
+        headers=headers,
+    )
+    assert oversized_code_response.status_code == 413
+
+    oversized_stdin = "a" * (settings.MAX_EXECUTION_STDIN_BYTES + 1)
+    oversized_stdin_response = await async_client.post(
+        "/api/v1/coding-problems/run",
+        json={"language": "python", "code": "print(input())", "stdin": oversized_stdin},
+        headers=headers,
+    )
+    assert oversized_stdin_response.status_code == 413

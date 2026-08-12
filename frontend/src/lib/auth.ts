@@ -3,12 +3,21 @@ import { api } from "@/lib/api";
 export type AuthUser = {
   id: string;
   arabic_name: string;
-  phone_number: string;
   grade_level?: string | null;
   role?: string;
 };
 
 const USER_INFO_KEY = "user_info";
+
+function sanitizeUserForStorage(user: AuthUser | null): AuthUser | null {
+  if (!user) return null;
+  return {
+    id: user.id,
+    arabic_name: user.arabic_name,
+    grade_level: user.grade_level ?? null,
+    role: user.role,
+  };
+}
 
 export function getStoredUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
@@ -24,11 +33,12 @@ export function getStoredUser(): AuthUser | null {
 
 export function setStoredUser(user: AuthUser | null): void {
   if (typeof window === "undefined") return;
-  if (!user) {
+  const sanitizedUser = sanitizeUserForStorage(user);
+  if (!sanitizedUser) {
     localStorage.removeItem(USER_INFO_KEY);
     return;
   }
-  localStorage.setItem(USER_INFO_KEY, JSON.stringify(user));
+  localStorage.setItem(USER_INFO_KEY, JSON.stringify(sanitizedUser));
 }
 
 export async function fetchCurrentUser(): Promise<AuthUser | null> {

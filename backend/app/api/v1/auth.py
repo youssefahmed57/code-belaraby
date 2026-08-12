@@ -6,12 +6,7 @@ from app.core.database import get_db
 from app.core.security import clear_auth_cookies, set_auth_cookies
 from app.db.models import User
 from app.schemas.all_schemas import LoginRequest, RegisterStudentRequest, TokenResponse, UserResponse
-from app.services.auth_service import (
-    get_primary_role,
-    login_user,
-    logout_user,
-    register_student,
-)
+from app.services.auth_service import get_primary_role, login_user, logout_user, register_student
 from app.services.password_reset_delivery_service import PasswordResetDeliveryUnavailable
 from app.services.rate_limit_service import get_rate_limit_scope_ip
 
@@ -27,9 +22,9 @@ async def register(
     db: AsyncSession = Depends(get_db),
 ):
     if req.password != req.password_confirm:
-        raise HTTPException(status_code=400, detail="كلمات المرور غير متطابقة.")
+        raise HTTPException(status_code=400, detail="كلمتا المرور غير متطابقتين.")
 
-    ip_addr = get_rate_limit_scope_ip(request)
+    ip_address = get_rate_limit_scope_ip(request)
     user, token, session_token = await register_student(
         db=db,
         arabic_name=req.arabic_name,
@@ -39,7 +34,7 @@ async def register(
         email=req.email,
         parent_name=req.parent_name,
         parent_phone=req.parent_phone or req.parent_phone_number,
-        ip_address=ip_addr,
+        ip_address=ip_address,
     )
 
     set_auth_cookies(response, token, session_token)
@@ -57,15 +52,14 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    ip_addr = get_rate_limit_scope_ip(request)
+    ip_address = get_rate_limit_scope_ip(request)
     user_agent = request.headers.get("user-agent")
-
     user, token, session_token, primary_role = await login_user(
         db=db,
         identifier=req.identifier,
         password=req.password,
         user_agent=user_agent,
-        ip_address=ip_addr,
+        ip_address=ip_address,
     )
 
     set_auth_cookies(response, token, session_token)
@@ -109,9 +103,9 @@ async def forgot_password_endpoint(
     payload: dict,
     db: AsyncSession = Depends(get_db),
 ):
-    identifier = payload.get("identifier", "")
     from app.services.auth_service import request_password_reset
 
+    identifier = str(payload.get("identifier", "")).strip()
     try:
         await request_password_reset(db, identifier)
     except PasswordResetDeliveryUnavailable as exc:
@@ -120,7 +114,7 @@ async def forgot_password_endpoint(
             detail="خدمة إعادة تعيين كلمة المرور غير متاحة حالياً.",
         ) from exc
     return {
-        "message": "إذا كان البريد الإلكتروني أو رقم الهاتف مسجلاً لدينا، فستتم معالجة الطلب."
+        "message": "إذا كان البريد الإلكتروني أو رقم الهاتف مسجلاً لدينا، فسيتم إرسال تعليمات إعادة التعيين."
     }
 
 
@@ -129,12 +123,15 @@ async def reset_password_endpoint(
     payload: dict,
     db: AsyncSession = Depends(get_db),
 ):
-    token = payload.get("token")
+    from app.services.auth_service import reset_password_with_token
+
+    token = str(payload.get("token", "")).strip()
     new_password = payload.get("new_password")
+    password_confirm = payload.get("password_confirm")
     if not token or not new_password:
         raise HTTPException(status_code=400, detail="الرمز وكلمة المرور الجديدة مطلوبان.")
-
-    from app.services.auth_service import reset_password_with_token
+    if password_confirm is not None and password_confirm != new_password:
+        raise HTTPException(status_code=400, detail="كلمتا المرور غير متطابقتين.")
 
     await reset_password_with_token(db, raw_token=token, new_password=new_password)
     return {

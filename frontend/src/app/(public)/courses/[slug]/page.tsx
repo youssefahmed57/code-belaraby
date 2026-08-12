@@ -27,6 +27,7 @@ interface CourseDetails {
   description: string;
   grade_level: string;
   price: number;
+  discount_price?: number | null;
   instructor_name: string;
   modules: Module[];
 }
@@ -155,9 +156,18 @@ export default function CourseDetailPage() {
           <div className="glass-panel p-6 rounded-3xl border border-slate-800 sticky top-24 space-y-6 shadow-2xl">
             <div className="space-y-2">
               <span className="text-xs text-slate-400">سعر الكورس والتفعيل</span>
-              <div className="text-3xl font-black text-white">
-                {course.price} <span className="text-sm text-slate-400 font-normal">جنيه مصري</span>
-              </div>
+              {course.discount_price != null ? (
+                <div className="space-y-1">
+                  <div className="text-sm text-slate-500 line-through">{course.price} جنيه</div>
+                  <div className="text-3xl font-black text-emerald-400">
+                    {course.discount_price} <span className="text-sm text-slate-400 font-normal">جنيه مصري</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-3xl font-black text-white">
+                  {course.price} <span className="text-sm text-slate-400 font-normal">جنيه مصري</span>
+                </div>
+              )}
             </div>
 
             <ul className="space-y-3 text-sm text-slate-300">

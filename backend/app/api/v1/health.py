@@ -1,12 +1,12 @@
 import datetime
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
 from app.core.config import settings
+from app.core.database import get_db
 from app.services.execution_service import ExecutionService
 
 
@@ -26,6 +26,28 @@ def _redis_ready() -> bool:
         return False
 
 
+def _storage_ready() -> bool:
+    if settings.STORAGE_PROVIDER == "supabase":
+        return bool(settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY)
+    if settings.STORAGE_PROVIDER == "local":
+        return True
+    if settings.STORAGE_PROVIDER == "s3":
+        return bool(settings.S3_ENDPOINT_URL and settings.S3_ACCESS_KEY_ID and settings.S3_SECRET_ACCESS_KEY)
+    return False
+
+
+def _require_detailed_health_token(header_token: str | None) -> None:
+    if not settings.detailed_health_requires_token():
+        return
+    if not settings.HEALTH_MONITOR_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Detailed health monitoring is not configured for this environment.",
+        )
+    if header_token != settings.HEALTH_MONITOR_TOKEN:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized health monitor request.")
+
+
 @router.get("/health")
 async def health_check():
     return {"status": "alive", "service": "Code Belaraby API"}
@@ -33,7 +55,6 @@ async def health_check():
 
 @router.get("/ready")
 async def readiness_check(db: AsyncSession = Depends(get_db)):
-    db_ok = False
     try:
         db_ok = await _database_ready(db)
     except Exception:
@@ -45,7 +66,7 @@ async def readiness_check(db: AsyncSession = Depends(get_db)):
 
     if not db_ok or not execution_ok:
         raise HTTPException(
-            status_code=503,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
                 "status": "not_ready",
                 "database": "ready" if db_ok else "unavailable",
@@ -61,20 +82,30 @@ async def readiness_check(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/health/detailed")
-async def detailed_health_check(db: AsyncSession = Depends(get_db)):
+async def detailed_health_check(
+    db: AsyncSession = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_health_monitor_token: str | None = Header(default=None),
+):
+    bearer_token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        bearer_token = authorization[7:].strip()
+    _require_detailed_health_token(x_health_monitor_token or bearer_token)
+
     try:
         db_ok = await _database_ready(db)
     except Exception:
         db_ok = False
 
     redis_ok = _redis_ready()
-    execution_health = await ExecutionService.check_execution_provider_health()
-    storage_ok = bool(settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY) or settings.is_development_like()
+    storage_ok = _storage_ready()
     password_reset_delivery_ok = settings.is_password_reset_delivery_configured()
+    execution_health = await ExecutionService.check_execution_provider_health()
 
-    overall_ok = db_ok and redis_ok and (
-        execution_health["healthy"] or not settings.requires_isolated_code_execution()
-    )
+    execution_required = settings.requires_isolated_code_execution()
+    execution_ok = execution_health["healthy"] if execution_required else True
+    overall_ok = db_ok and redis_ok and storage_ok and execution_ok
+
     return {
         "status": "healthy" if overall_ok else "degraded",
         "checks": {
@@ -105,21 +136,9 @@ async def public_status_page(db: AsyncSession = Depends(get_db)):
         "status": "operational" if overall_operational else "degraded",
         "last_updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "services": [
-            {
-                "name": "واجهة المنصة",
-                "status": "operational" if db_ok else "degraded",
-            },
-            {
-                "name": "محرك تشغيل الأكواد",
-                "status": "operational" if execution_ok else "degraded",
-            },
-            {
-                "name": "قاعدة البيانات",
-                "status": "operational" if db_ok else "degraded",
-            },
-            {
-                "name": "الذاكرة المؤقتة والطوابير",
-                "status": "operational" if redis_ok else "degraded",
-            },
+            {"name": "واجهة المنصة", "status": "operational" if db_ok else "degraded"},
+            {"name": "محرك تشغيل الأكواد", "status": "operational" if execution_ok else "degraded"},
+            {"name": "قاعدة البيانات", "status": "operational" if db_ok else "degraded"},
+            {"name": "الذاكرة المؤقتة والطوابير", "status": "operational" if redis_ok else "degraded"},
         ],
     }

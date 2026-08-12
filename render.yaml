@@ -43,14 +43,22 @@ services:
         value: none
       - key: SECURE_COOKIES
         value: "true"
+      - key: TRUSTED_PROXY_CIDRS
+        sync: false
       - key: RUN_SEED
         value: "false"
       - key: ALLOW_UNSAFE_LOCAL_CODE_EXECUTION
         value: "false"
       - key: ALLOW_LOCAL_RUNNER_IN_PROD
         value: "false"
+      - key: USE_MOCK_JUDGE0
+        value: "false"
       - key: JUDGE0_URL
         sync: false
+      - key: JUDGE0_API_KEY
+        sync: false
+      - key: USE_MOCK_VIDEO_PROVIDER
+        value: "false"
       - key: CLOUDFLARE_STREAM_ACCOUNT_ID
         sync: false
       - key: CLOUDFLARE_STREAM_API_TOKEN
@@ -61,10 +69,58 @@ services:
         sync: false
       - key: CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN
         sync: false
+      - key: BUNNY_STREAM_LIBRARY_ID
+        sync: false
+      - key: BUNNY_STREAM_API_KEY
+        sync: false
+      - key: BUNNY_STREAM_CDN_HOST
+        sync: false
+      - key: BUNNY_STREAM_PULL_ZONE
+        sync: false
+      - key: BUNNY_STREAM_TOKEN_AUTH_KEY
+        sync: false
+      - key: STORAGE_PROVIDER
+        sync: false
+      - key: STORAGE_LOCAL_DIR
+        sync: false
+      - key: PRIVATE_STORAGE_LOCAL_DIR
+        sync: false
+      - key: PUBLIC_ASSETS_LOCAL_DIR
+        sync: false
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET_NAME
+        sync: false
+      - key: PASSWORD_RESET_DELIVERY_PROVIDER
+        sync: false
+      - key: PASSWORD_RESET_SMTP_HOST
+        sync: false
+      - key: PASSWORD_RESET_SMTP_PORT
+        sync: false
+      - key: PASSWORD_RESET_SMTP_USERNAME
+        sync: false
+      - key: PASSWORD_RESET_SMTP_PASSWORD
+        sync: false
+      - key: PASSWORD_RESET_SMTP_FROM
+        sync: false
+      - key: PASSWORD_RESET_SMS_WEBHOOK_URL
+        sync: false
+      - key: PASSWORD_RESET_SMS_WEBHOOK_TOKEN
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: HEALTH_MONITOR_TOKEN
+        sync: false
       - key: DB_POOL_SIZE
         value: "20"
       - key: DB_MAX_OVERFLOW
         value: "40"
+      - key: BACKUP_RETENTION_DAYS
+        value: "14"
 
   - type: worker
     name: code-belaraby-worker-staging
@@ -75,11 +131,37 @@ services:
     envVars:
       - key: ENVIRONMENT
         value: staging
+      - key: DATABASE_URL
+        sync: false
+      - key: SYNC_DATABASE_URL
+        sync: false
       - key: REDIS_URL
         sync: false
       - key: JUDGE0_URL
+        sync: false
+      - key: JUDGE0_API_KEY
         sync: false
       - key: ALLOW_UNSAFE_LOCAL_CODE_EXECUTION
         value: "false"
       - key: ALLOW_LOCAL_RUNNER_IN_PROD
         value: "false"
+      - key: USE_MOCK_JUDGE0
+        value: "false"
+      - key: USE_MOCK_VIDEO_PROVIDER
+        value: "false"
+      - key: SECRET_KEY
+        sync: false
+      - key: CSRF_SECRET
+        sync: false
+      - key: SIGNED_URL_SECRET
+        sync: false
+      - key: RECEIPT_SIGNING_SECRET
+        sync: false
+      - key: VIDEO_SIGNING_SECRET
+        sync: false
+      - key: HEALTH_MONITOR_TOKEN
+        sync: false
+      - key: STORAGE_PROVIDER
+        sync: false
+      - key: PRIVATE_STORAGE_LOCAL_DIR
+        sync: false

@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { AlertCircle, Eye, EyeOff, Lock, LogIn, Phone } from "lucide-react";
+
 import { api } from "@/lib/api";
 import { setStoredUser } from "@/lib/auth";
-import { Phone, Lock, LogIn, AlertCircle, Eye, EyeOff } from "lucide-react";
+
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
@@ -13,17 +15,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (loading) return;
+
     setLoading(true);
     setError(null);
-
-    const cleanIdentifier = identifier.trim();
-
     try {
-      const res = await api.post("/auth/login", { identifier: cleanIdentifier, password });
-      const { user, role } = res.data;
+      const response = await api.post("/auth/login", {
+        identifier: identifier.trim(),
+        password,
+      });
+      const { user, role } = response.data;
       setStoredUser({ ...user, role });
 
       if (role === "admin" || role === "super_admin") {
@@ -36,11 +39,11 @@ export default function LoginPage() {
       if (status === 401) {
         setError("رقم الهاتف أو كلمة المرور غير صحيحة.");
       } else if (status === 429) {
-        setError("محاولات دخول كثيرة، يرجى المحاولة بعد قليل.");
+        setError(err.response?.data?.detail || "تم تأخير المحاولات مؤقتاً. يرجى المحاولة بعد قليل.");
       } else if (status >= 500) {
         setError("تعذر الاتصال بالخادم، يرجى المحاولة مرة أخرى.");
       } else {
-        setError(err.response?.data?.detail || "فشل تسجيل الدخول. يرجى التأكد من البيانات والمحاولة مجدداً.");
+        setError(err.response?.data?.detail || "فشل تسجيل الدخول. يرجى التحقق من البيانات والمحاولة مجدداً.");
       }
     } finally {
       setLoading(false);
@@ -55,12 +58,12 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-slate-400">أهلاً بك مجدداً في منصة كود بالعربي</p>
         </div>
 
-        {error && (
+        {error ? (
           <div className="p-4 rounded-xl bg-brand-red/10 border border-brand-red/30 text-brand-red text-sm flex items-center gap-3">
             <AlertCircle className="w-5 h-5 shrink-0" />
             <span>{error}</span>
           </div>
-        )}
+        ) : null}
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
@@ -73,7 +76,7 @@ export default function LoginPage() {
                   required
                   dir="ltr"
                   value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
+                  onChange={(event) => setIdentifier(event.target.value)}
                   placeholder="01011111111"
                   className="w-full px-4 py-3 rounded-xl bg-navy-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-brand-blue transition-colors pl-10 text-left"
                 />
@@ -84,9 +87,9 @@ export default function LoginPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-xs font-bold text-slate-300">كلمة المرور</label>
-                <a href="https://wa.me/201001340533?text=نسيت%20كلمة%20المرور" target="_blank" rel="noopener noreferrer" className="text-xs text-brand-blue hover:underline font-semibold">
+                <Link href="/forgot-password" className="text-xs text-brand-blue hover:underline font-semibold">
                   نسيت كلمة المرور؟
-                </a>
+                </Link>
               </div>
               <div className="relative">
                 <input
@@ -95,14 +98,14 @@ export default function LoginPage() {
                   required
                   dir="ltr"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                   placeholder="••••••••"
                   className="w-full px-4 py-3 rounded-xl bg-navy-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-brand-blue transition-colors pl-10 pr-10 text-left"
                 />
                 <Lock className="w-5 h-5 text-slate-500 absolute left-3 top-3.5" />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowPassword((current) => !current)}
                   className="absolute right-3 top-3.5 text-slate-400 hover:text-white"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -116,7 +119,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-3.5 rounded-xl bg-gradient-to-r from-brand-blue to-cyan-500 hover:from-brand-blueHover hover:to-cyan-600 text-white font-bold text-base shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {loading ? "جاري تسجيل الدخول..." : "دخول الحساب"}
+            {loading ? "جارٍ تسجيل الدخول..." : "دخول الحساب"}
             <LogIn className="w-5 h-5" />
           </button>
         </form>

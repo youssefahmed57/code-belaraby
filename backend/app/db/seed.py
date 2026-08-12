@@ -188,6 +188,7 @@ def seed_db():
             "secondary_phone": "01008168639",
             "whatsapp_phone": "01001340533",
             "instapay_account": "01001340533",
+            "instapay_number": "01001340533",
             "vodafone_cash_number": "01001340533",
             "currency": "جنية مصري",
             "default_passing_score": 70.0,

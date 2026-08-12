@@ -25,6 +25,7 @@ jobs:
       - name: Run Telegram Health Monitor Script
         env:
           STAGING_HEALTH_URL: "https://code-belaraby-backend-staging.onrender.com/api/v1/health/detailed"
+          HEALTH_MONITOR_TOKEN: ${{ secrets.HEALTH_MONITOR_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |

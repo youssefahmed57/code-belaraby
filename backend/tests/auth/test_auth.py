@@ -63,6 +63,51 @@ async def test_invalid_egyptian_phone(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_registration_rejects_passwords_that_are_too_short(async_client: AsyncClient):
+    response = await async_client.post(
+        "/api/v1/auth/register",
+        json={
+            "arabic_name": "طالب كلمة مرور قصيرة",
+            "phone_number": f"010{uuid.uuid4().int % 100000000:08d}",
+            "password": "Abc123",
+            "password_confirm": "Abc123",
+            "grade_level": "first_secondary",
+        },
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_registration_rejects_password_without_digit(async_client: AsyncClient):
+    response = await async_client.post(
+        "/api/v1/auth/register",
+        json={
+            "arabic_name": "طالب بدون رقم",
+            "phone_number": f"010{uuid.uuid4().int % 100000000:08d}",
+            "password": "PasswordOnly",
+            "password_confirm": "PasswordOnly",
+            "grade_level": "first_secondary",
+        },
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_registration_rejects_password_confirmation_mismatch(async_client: AsyncClient):
+    response = await async_client.post(
+        "/api/v1/auth/register",
+        json={
+            "arabic_name": "طالب تأكيد خاطئ",
+            "phone_number": f"010{uuid.uuid4().int % 100000000:08d}",
+            "password": "Password123",
+            "password_confirm": "Password1234",
+            "grade_level": "first_secondary",
+        },
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_valid_session_bound_to_exact_sid(async_client: AsyncClient):
     login_response = await _login(async_client)
     token = login_response.json()["access_token"]
@@ -257,6 +302,63 @@ async def test_password_reset_uses_mock_delivery_and_revokes_sessions(async_clie
         json={"token": raw_token, "new_password": "NewStudentPass123!@#"},
     )
     assert reuse_response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_password_reset_rejects_invalid_password_policy_and_mismatch(async_client: AsyncClient):
+    forgot_response = await async_client.post(
+        "/api/v1/auth/forgot-password",
+        json={"identifier": "student1@codejourney.eg"},
+    )
+    assert forgot_response.status_code == 200
+    raw_token = get_mock_password_reset_deliveries()[-1]["token"]
+
+    short_password = await async_client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": raw_token, "new_password": "Abc123", "password_confirm": "Abc123"},
+    )
+    assert short_password.status_code == 400
+
+    no_digit = await async_client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": raw_token, "new_password": "PasswordOnly", "password_confirm": "PasswordOnly"},
+    )
+    assert no_digit.status_code == 400
+
+    mismatch = await async_client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": raw_token, "new_password": "Password123", "password_confirm": "Password124"},
+    )
+    assert mismatch.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_failed_login_backoff_is_temporary_and_resets_after_success(async_client: AsyncClient):
+    for _ in range(4):
+        response = await async_client.post(
+            "/api/v1/auth/login",
+            json={"identifier": "01011111111", "password": "WrongPassword123!"},
+        )
+        assert response.status_code == 401
+
+    success_response = await async_client.post(
+        "/api/v1/auth/login",
+        json={"identifier": "01011111111", "password": "StudentPass123!@#"},
+    )
+    assert success_response.status_code == 200
+
+    for _ in range(4):
+        response = await async_client.post(
+            "/api/v1/auth/login",
+            json={"identifier": "01011111111", "password": "WrongPassword123!"},
+        )
+        assert response.status_code == 401
+
+    throttled_response = await async_client.post(
+        "/api/v1/auth/login",
+        json={"identifier": "01011111111", "password": "WrongPassword123!"},
+    )
+    assert throttled_response.status_code == 429
 
 
 @pytest.mark.asyncio

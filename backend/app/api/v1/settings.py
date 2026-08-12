@@ -14,7 +14,7 @@ _PUBLIC_SETTINGS_KEYS = {
     "support_email", "social_facebook", "social_youtube",
     "social_telegram", "social_whatsapp", "announcement_text",
     "maintenance_mode", "registration_enabled", "payment_instructions",
-    "instapay_number", "vodafone_cash_number",
+    "instapay_number", "instapay_account", "vodafone_cash_number",
 }
 
 @router.get("")
@@ -26,6 +26,12 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
     settings_dict = {}
     for row in settings_rows:
         settings_dict[row.key] = row.value
+
+    # Preserve compatibility with older seeded data while keeping the public
+    # API contract stable for the frontend payment flow.
+    if "instapay_number" not in settings_dict and "instapay_account" in settings_dict:
+        settings_dict["instapay_number"] = settings_dict["instapay_account"]
+    settings_dict.pop("instapay_account", None)
 
     return settings_dict
 

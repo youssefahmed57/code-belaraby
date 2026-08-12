@@ -1,51 +1,62 @@
-# Deployment Architecture
+# Deployment Notes
 
-> Superseded reference. As of Wednesday, August 12, 2026, the authoritative deployment split is documented in `docs/deployment-architecture.md`. This file is retained only for historical context.
+This repository's active production deployment platform is Coolify, not direct SSH Docker Compose.
 
-## Authoritative Deployment
+## Production
 
-The platform uses Docker Compose with environment-specific overrides.
+- Coolify application `code-belaraby-backend-ssh`
+  - repository: `youssefahmed57/code-belaraby`
+  - branch: `main`
+  - base directory: `backend`
 
-### Production
-```bash
-docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --build
-```
+- Coolify application `code-belaraby-frontend-ssh`
+  - repository: `youssefahmed57/code-belaraby`
+  - branch: `main`
+  - base directory: `frontend`
 
-Required environment variables (set in `.env` on VPS):
-- `POSTGRES_PASSWORD`
-- `SECRET_KEY`
-- `CSRF_SECRET`
-- `SIGNED_URL_SECRET`
-- `COOKIE_DOMAIN`
-- `ALLOWED_ORIGINS`
-- `DATABASE_URL`
+- Production release sequence:
+  1. local verification
+  2. green `Verify Platform`
+  3. Coolify redeploy of the verified commit
 
-### Staging
-```bash
-docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --build
-```
+## Staging
 
-## Legacy / Deprecated Paths
+- `render.yaml` is the repository-owned staging definition for backend and worker parity checks.
+- Staging must also disable mock execution and mock video providers.
 
-The following deployment configurations exist but are NOT the primary deployment method:
+## Compose files
 
-- `vercel.json` — Frontend-only deployment to Vercel (deprecated in favor of Docker)
-- `render.yaml` — Render.com deployment (deprecated)
-- `netlify.toml` — Netlify deployment (deprecated)
+- `docker-compose.yml` and `docker-compose.production.yml` remain important for:
+  - local production-like validation
+  - Docker config checks in CI
+  - documenting required runtime variables
+- They are not the authoritative live production deployment mechanism while Coolify is in use.
 
-These files are retained for reference but should NOT be used for production deployments.
+## Frontend API configuration
 
-## Frontend API URL
+- Preferred production configuration:
+  - `NEXT_PUBLIC_API_URL=/api/v1`
+  - reverse proxy routes `/api/*` to the backend service
+- If path-based proxying is unavailable, set `BACKEND_INTERNAL_URL` to a real backend origin reachable from the frontend container.
+- Never point production frontend traffic to staging infrastructure.
 
-The frontend reads `NEXT_PUBLIC_API_URL` at build time.
+## Authentication contract
 
-- **Production**: Set to the production backend URL
-- **Staging**: Set to the staging backend URL
-- **Development**: Defaults to `http://localhost:8000/api/v1`
+- Browser-facing sessions remain anchored in HttpOnly cookies.
+- Login and registration responses still include `access_token` for repository-owned automated tests and non-browser API consumers that already depend on bearer auth.
+- Frontend application state must not persist bearer tokens in `localStorage`.
 
-> **CRITICAL**: Production frontend must NEVER use a staging or development backend URL.
+## Execution architecture
 
-## CI/CD
+- Public coding endpoints currently use a bounded synchronous execution request flow.
+- The Redis worker exists for queued execution jobs, but frontend/API submissions are not yet routed through that queue.
+- Safety controls for the current request flow must stay enabled:
+  - strict input-size caps
+  - capped test-case counts
+  - explicit request deadlines
+  - fail-closed behavior when isolated execution is required and unavailable
 
-Production deployment no longer runs directly on every push to `main`.
-The repository now gates deployment behind the verification workflow, migration validation, and Docker config validation before the production workflow can proceed.
+## Legacy workflow
+
+- `.github/workflows/deploy-production.yml` is manual-only and intentionally does not SSH deploy production.
+- Missing VPS SSH secrets should no longer create a false red production-deploy signal after a successful CI run.

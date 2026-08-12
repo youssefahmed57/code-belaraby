@@ -8,19 +8,36 @@ from app.core.config import settings
 logger = logging.getLogger("cache")
 
 _redis_client: Optional[redis.Redis] = None
+_redis_retry_after: float = 0.0
 _local_cache = {} # key -> (expiration_timestamp, value_dict_or_json)
 
+
+def reset_cache_state() -> None:
+    global _redis_client, _redis_retry_after
+    _redis_client = None
+    _redis_retry_after = 0.0
+    _local_cache.clear()
+
 def get_redis_client() -> Optional[redis.Redis]:
-    global _redis_client
+    global _redis_client, _redis_retry_after
     if _redis_client is not None:
         return _redis_client
+    now = time.time()
+    if _redis_retry_after > now:
+        return None
     if settings.REDIS_URL:
         try:
-            r = redis.Redis.from_url(settings.REDIS_URL, socket_timeout=1.5, decode_responses=True)
+            r = redis.Redis.from_url(
+                settings.REDIS_URL,
+                socket_timeout=1.5,
+                socket_connect_timeout=0.5,
+                decode_responses=True,
+            )
             if r.ping():
                 _redis_client = r
                 return _redis_client
         except Exception as e:
+            _redis_retry_after = now + 30
             logger.warning(f"Redis connection unavailable for caching: {e}")
     return None
 

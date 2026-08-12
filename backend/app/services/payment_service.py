@@ -31,6 +31,7 @@ PAYMENT_TRANSITIONS = {
     "cancelled": set(),
     "refunded": set(),
 }
+REUSABLE_PAYMENT_STATUSES = {"draft", "awaiting_receipt", "more_info_required"}
 
 
 def validate_payment_transition(current_status: str, new_status: str) -> None:
@@ -69,9 +70,29 @@ async def create_payment_order(
     course_id: str,
     payment_method: str,
 ) -> Payment:
-    course = await db.scalar(select(Course).where(Course.id == course_id))
+    course = await db.scalar(select(Course).where(Course.id == course_id, Course.status == "published"))
     if not course:
         raise HTTPException(status_code=404, detail="الكورس غير موجود.")
+
+    latest_payment = await db.scalar(
+        select(Payment)
+        .where(Payment.student_id == student_id, Payment.course_id == course_id)
+        .order_by(Payment.created_at.desc())
+        .limit(1)
+    )
+    if latest_payment:
+        if latest_payment.status in REUSABLE_PAYMENT_STATUSES:
+            return latest_payment
+        if latest_payment.status == "pending_review":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="يوجد بالفعل طلب دفع لهذا الكورس قيد المراجعة. يمكنك انتظار نتيجة المراجعة الحالية.",
+            )
+        if latest_payment.status == "approved":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="تم اعتماد طلب الدفع لهذا الكورس بالفعل ولا يمكن إنشاء طلب جديد حالياً.",
+            )
 
     payment = Payment(
         reference_code=generate_payment_reference(),
@@ -178,19 +199,23 @@ async def review_payment_admin(
     payment.reviewed_at = datetime.utcnow()
 
     if action == "approve":
+        if payment.amount_submitted is None:
+            raise HTTPException(status_code=400, detail="لا يمكن اعتماد الطلب قبل تسجيل المبلغ المحول من الطالب.")
+        if Decimal(payment.amount_submitted) < Decimal(payment.amount_expected):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="لا يمكن اعتماد هذا الطلب لأن المبلغ المحول أقل من المبلغ المطلوب للكورس.",
+            )
+
         payment.status = "approved"
         course = await db.scalar(select(Course).where(Course.id == payment.course_id))
         access_days = course.access_duration_days if course else 365
 
         enrolment = await db.scalar(
             select(Enrolment)
-            .where(
-                Enrolment.student_id == payment.student_id,
-                Enrolment.course_id == payment.course_id,
-            )
+            .where(Enrolment.student_id == payment.student_id, Enrolment.course_id == payment.course_id)
             .with_for_update()
         )
-
         if enrolment:
             enrolment.status = "active"
             enrolment.access_start = datetime.utcnow()
@@ -227,13 +252,7 @@ async def review_payment_admin(
                 )
             )
             if not lesson_progress:
-                db.add(
-                    LessonProgress(
-                        student_id=payment.student_id,
-                        lesson_id=first_lesson.id,
-                        status="available",
-                    )
-                )
+                db.add(LessonProgress(student_id=payment.student_id, lesson_id=first_lesson.id, status="available"))
             elif lesson_progress.status == "locked":
                 lesson_progress.status = "available"
 
@@ -245,7 +264,6 @@ async def review_payment_admin(
                 type="payment",
             )
         )
-
     elif action == "reject":
         payment.status = "rejected"
         payment.rejection_reason = rejection_reason or "تعذر التحقق من صحة التحويل."

@@ -87,14 +87,31 @@ async def get_current_user(
     return user
 
 
+async def get_optional_current_user(
+    request: Request,
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> Optional[User]:
+    try:
+        return await get_current_user(request=request, token=token, db=db)
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            return None
+        raise
+
+
+async def get_user_role_names(db: AsyncSession, user_id: str) -> list[str]:
+    stmt = select(Role.name).join(UserRole).where(UserRole.user_id == user_id)
+    result = await db.execute(stmt)
+    return [role_name for (role_name,) in result.all()]
+
+
 def require_roles(allowed_roles: List[str]):
     async def role_checker(
         current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
     ):
-        stmt = select(Role.name).join(UserRole).where(UserRole.user_id == current_user.id)
-        res = await db.execute(stmt)
-        user_roles = [role_name for (role_name,) in res.all()]
+        user_roles = await get_user_role_names(db, current_user.id)
 
         if "super_admin" in user_roles:
             return current_user

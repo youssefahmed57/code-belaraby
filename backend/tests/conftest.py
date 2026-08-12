@@ -1,11 +1,12 @@
 import sys
 import os
+import tempfile
 from pathlib import Path
 
 import pytest
 from httpx import AsyncClient, ASGITransport
 
-TEST_DB_PATH = (Path(__file__).resolve().parents[1] / "test_suite.db").resolve()
+TEST_DB_PATH = (Path(tempfile.gettempdir()) / f"code_belaraby_test_suite_{os.getpid()}.db").resolve()
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH.as_posix()}"
 os.environ["SYNC_DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
 
@@ -30,9 +31,20 @@ def init_database():
     for db_path in _sqlite_test_db_paths():
         for candidate in (db_path, db_path.with_suffix(".db-shm"), db_path.with_suffix(".db-wal"), db_path.with_suffix(".db-journal")):
             if candidate.exists():
-                candidate.unlink()
+                try:
+                    candidate.unlink()
+                except PermissionError:
+                    pass
     upgrade_schema_to_head()
     seed_db()
+    yield
+    for db_path in _sqlite_test_db_paths():
+        for candidate in (db_path, db_path.with_suffix(".db-shm"), db_path.with_suffix(".db-wal"), db_path.with_suffix(".db-journal")):
+            if candidate.exists():
+                try:
+                    candidate.unlink()
+                except PermissionError:
+                    pass
 
 @pytest.fixture(autouse=True)
 def reset_user_lockouts():
@@ -44,12 +56,39 @@ def reset_user_lockouts():
 
 
 @pytest.fixture(autouse=True)
+def reset_auth_throttles():
+    from app.services.auth_service import _local_auth_throttle_store
+
+    _local_auth_throttle_store.clear()
+    yield
+    _local_auth_throttle_store.clear()
+
+
+@pytest.fixture(autouse=True)
 def reset_rate_limits():
     from app.services.rate_limit_service import _local_rate_limit_store
 
     _local_rate_limit_store.clear()
     yield
     _local_rate_limit_store.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_cache_state_fixture():
+    from app.core.cache import reset_cache_state
+
+    reset_cache_state()
+    yield
+    reset_cache_state()
+
+
+@pytest.fixture(autouse=True)
+def reset_mock_password_reset_deliveries():
+    from app.services.password_reset_delivery_service import clear_mock_password_reset_deliveries
+
+    clear_mock_password_reset_deliveries()
+    yield
+    clear_mock_password_reset_deliveries()
 
 @pytest.fixture
 async def async_client():
