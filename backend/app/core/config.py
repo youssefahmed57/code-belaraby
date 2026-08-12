@@ -1,6 +1,8 @@
 import json
 import os
+from ipaddress import ip_network
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -30,6 +32,14 @@ def _default_local_frontend_origins() -> List[str]:
     return ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 
+def _default_trusted_proxy_ips() -> List[str]:
+    return ["127.0.0.1", "::1"]
+
+
+def _default_trusted_proxy_cidrs() -> List[str]:
+    return ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -50,6 +60,8 @@ class Settings(BaseSettings):
 
     ALLOWED_ORIGINS: List[str] = Field(default_factory=_default_local_frontend_origins)
     CSRF_TRUSTED_ORIGINS: List[str] = Field(default_factory=_default_local_frontend_origins)
+    TRUSTED_PROXY_IPS: List[str] = Field(default_factory=_default_trusted_proxy_ips)
+    TRUSTED_PROXY_CIDRS: List[str] = Field(default_factory=_default_trusted_proxy_cidrs)
 
     COOKIE_DOMAIN: str = "localhost"
     COOKIE_SAMESITE: str = "lax"
@@ -95,6 +107,14 @@ class Settings(BaseSettings):
 
     NEXT_PUBLIC_API_URL: str = "http://localhost:8000/api/v1"
     NEXT_PUBLIC_APP_URL: str = "http://localhost:3000"
+    PASSWORD_RESET_DELIVERY_PROVIDER: str = "mock"
+    PASSWORD_RESET_SMTP_HOST: Optional[str] = None
+    PASSWORD_RESET_SMTP_PORT: int = 587
+    PASSWORD_RESET_SMTP_USERNAME: Optional[str] = None
+    PASSWORD_RESET_SMTP_PASSWORD: Optional[str] = None
+    PASSWORD_RESET_SMTP_FROM: Optional[str] = None
+    PASSWORD_RESET_SMS_WEBHOOK_URL: Optional[str] = None
+    PASSWORD_RESET_SMS_WEBHOOK_TOKEN: Optional[str] = None
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
@@ -125,6 +145,16 @@ class Settings(BaseSettings):
     def parse_csrf_trusted_origins(cls, value: object) -> List[str]:
         return _parse_list_env(value, _default_local_frontend_origins())
 
+    @field_validator("TRUSTED_PROXY_IPS", mode="before")
+    @classmethod
+    def parse_trusted_proxy_ips(cls, value: object) -> List[str]:
+        return _parse_list_env(value, _default_trusted_proxy_ips())
+
+    @field_validator("TRUSTED_PROXY_CIDRS", mode="before")
+    @classmethod
+    def parse_trusted_proxy_cidrs(cls, value: object) -> List[str]:
+        return _parse_list_env(value, _default_trusted_proxy_cidrs())
+
     @field_validator("COOKIE_SAMESITE")
     @classmethod
     def validate_cookie_samesite(cls, value: str) -> str:
@@ -133,11 +163,112 @@ class Settings(BaseSettings):
             raise ValueError("COOKIE_SAMESITE must be one of: lax, strict, none")
         return normalized
 
+    @field_validator("PASSWORD_RESET_DELIVERY_PROVIDER")
+    @classmethod
+    def validate_password_reset_delivery_provider(cls, value: str) -> str:
+        normalized = value.lower().strip()
+        if normalized not in {"mock", "disabled", "smtp_email", "sms_webhook"}:
+            raise ValueError(
+                "PASSWORD_RESET_DELIVERY_PROVIDER must be one of: mock, disabled, smtp_email, sms_webhook"
+            )
+        return normalized
+
     def is_development_like(self) -> bool:
         return self.ENVIRONMENT in {"development", "test"}
 
     def requires_isolated_code_execution(self) -> bool:
         return self.ENVIRONMENT in {"staging", "production"}
+
+    def is_mock_value(self, value: Optional[str]) -> bool:
+        if value is None:
+            return True
+        lowered = value.strip().lower()
+        return lowered == "" or any(marker in lowered for marker in ("mock", "default_", "change_in_production"))
+
+    def is_password_reset_delivery_configured(self) -> bool:
+        provider = self.PASSWORD_RESET_DELIVERY_PROVIDER
+        if provider == "mock":
+            return self.is_development_like()
+        if provider == "disabled":
+            return False
+        if provider == "smtp_email":
+            return all(
+                [
+                    self.PASSWORD_RESET_SMTP_HOST,
+                    self.PASSWORD_RESET_SMTP_USERNAME,
+                    self.PASSWORD_RESET_SMTP_PASSWORD,
+                    self.PASSWORD_RESET_SMTP_FROM,
+                ]
+            )
+        if provider == "sms_webhook":
+            return bool(self.PASSWORD_RESET_SMS_WEBHOOK_URL)
+        return False
+
+    def is_video_provider_configured(self, provider: str) -> bool:
+        normalized = (provider or "").lower()
+        if normalized == "local":
+            return self.is_development_like() and self.USE_MOCK_VIDEO_PROVIDER
+        if normalized == "cloudflare_stream":
+            return all(
+                [
+                    self.CLOUDFLARE_STREAM_ACCOUNT_ID and not self.is_mock_value(self.CLOUDFLARE_STREAM_ACCOUNT_ID),
+                    self.CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN
+                    and not self.is_mock_value(self.CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN),
+                    (
+                        self.CLOUDFLARE_STREAM_API_TOKEN and not self.is_mock_value(self.CLOUDFLARE_STREAM_API_TOKEN)
+                    )
+                    or (
+                        self.CLOUDFLARE_STREAM_KEY_ID
+                        and not self.is_mock_value(self.CLOUDFLARE_STREAM_KEY_ID)
+                        and self.CLOUDFLARE_STREAM_PEM_KEY
+                        and not self.is_mock_value(self.CLOUDFLARE_STREAM_PEM_KEY)
+                    ),
+                ]
+            )
+        if normalized == "bunny_stream":
+            return all(
+                [
+                    self.BUNNY_STREAM_LIBRARY_ID and not self.is_mock_value(self.BUNNY_STREAM_LIBRARY_ID),
+                    self.BUNNY_STREAM_TOKEN_AUTH_KEY and not self.is_mock_value(self.BUNNY_STREAM_TOKEN_AUTH_KEY),
+                ]
+            )
+        return False
+
+    def normalize_origin(self, origin: str) -> Optional[tuple[str, str, int]]:
+        parsed = urlparse(origin)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return None
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        return parsed.scheme, parsed.hostname.lower(), port
+
+    def is_csrf_origin_trusted(self, origin: str) -> bool:
+        normalized_origin = self.normalize_origin(origin)
+        if normalized_origin is None:
+            return False
+        origin_scheme, origin_host, origin_port = normalized_origin
+        for configured_origin in self.CSRF_TRUSTED_ORIGINS:
+            normalized_config = self.normalize_origin(configured_origin)
+            if normalized_config is None:
+                continue
+            trusted_scheme, trusted_host, trusted_port = normalized_config
+            if trusted_scheme != origin_scheme or trusted_port != origin_port:
+                continue
+            if trusted_host.startswith("."):
+                boundary_host = trusted_host[1:]
+                if origin_host == boundary_host or origin_host.endswith(f".{boundary_host}"):
+                    return True
+            elif origin_host == trusted_host:
+                return True
+        return False
+
+    def trusted_proxy_networks(self) -> list:
+        networks = []
+        for cidr in self.TRUSTED_PROXY_CIDRS:
+            try:
+                networks.append(ip_network(cidr, strict=False))
+            except ValueError:
+                continue
+        return networks
 
 
 settings = Settings(
@@ -152,6 +283,10 @@ if settings.requires_isolated_code_execution():
     if settings.ALLOW_UNSAFE_LOCAL_CODE_EXECUTION or settings.ALLOW_LOCAL_RUNNER_IN_PROD:
         raise RuntimeError(
             "FATAL: unsafe local code execution must remain disabled in staging and production."
+        )
+    if settings.USE_MOCK_VIDEO_PROVIDER:
+        raise RuntimeError(
+            "FATAL: mock video playback must remain disabled in staging and production."
         )
 
 # Production/staging secrets must never use repo defaults or mock placeholders.

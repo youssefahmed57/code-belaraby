@@ -15,6 +15,15 @@ branch_labels = None
 depends_on = None
 
 
+DUPLICATE_ENROLMENT_PREFLIGHT_SQL = """
+SELECT student_id, course_id, COUNT(*) AS duplicate_count
+FROM enrolments
+GROUP BY student_id, course_id
+HAVING COUNT(*) > 1
+ORDER BY duplicate_count DESC, student_id, course_id
+"""
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = Inspector.from_engine(bind)
@@ -49,6 +58,17 @@ def upgrade() -> None:
 
     # --- 2. Add UniqueConstraint on enrolments(student_id, course_id) ---
     if "enrolments" in inspector.get_table_names():
+        duplicate_rows = bind.execute(sa.text(DUPLICATE_ENROLMENT_PREFLIGHT_SQL)).fetchall()
+        if duplicate_rows:
+            sample = ", ".join(
+                f"(student_id={row[0]}, course_id={row[1]}, count={row[2]})"
+                for row in duplicate_rows[:5]
+            )
+            raise RuntimeError(
+                "Cannot apply uq_enrolment_student_course because duplicate enrolments already exist. "
+                "Resolve duplicates before running this migration. "
+                f"Sample duplicates: {sample}"
+            )
         existing_uqs = inspector.get_unique_constraints("enrolments")
         uq_names = [uq['name'] for uq in existing_uqs if uq.get('name')]
         if "uq_enrolment_student_course" not in uq_names:

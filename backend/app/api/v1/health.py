@@ -28,7 +28,7 @@ def _redis_ready() -> bool:
 
 @router.get("/health")
 async def health_check():
-    return {"status": "alive", "service": "Code Journey Academy API"}
+    return {"status": "alive", "service": "Code Belaraby API"}
 
 
 @router.get("/ready")
@@ -70,6 +70,7 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)):
     redis_ok = _redis_ready()
     execution_health = await ExecutionService.check_execution_provider_health()
     storage_ok = bool(settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY) or settings.is_development_like()
+    password_reset_delivery_ok = settings.is_password_reset_delivery_configured()
 
     overall_ok = db_ok and redis_ok and (
         execution_health["healthy"] or not settings.requires_isolated_code_execution()
@@ -81,6 +82,7 @@ async def detailed_health_check(db: AsyncSession = Depends(get_db)):
             "redis": "connected" if redis_ok else "unavailable",
             "storage": "configured" if storage_ok else "unavailable",
             "execution_provider": "connected" if execution_health["healthy"] else "unavailable",
+            "password_reset_delivery": "configured" if password_reset_delivery_ok else "unavailable",
         },
     }
 

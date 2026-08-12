@@ -12,6 +12,8 @@ from app.services.auth_service import (
     logout_user,
     register_student,
 )
+from app.services.password_reset_delivery_service import PasswordResetDeliveryUnavailable
+from app.services.rate_limit_service import get_rate_limit_scope_ip
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -27,7 +29,7 @@ async def register(
     if req.password != req.password_confirm:
         raise HTTPException(status_code=400, detail="كلمات المرور غير متطابقة.")
 
-    ip_addr = request.client.host if request.client else None
+    ip_addr = get_rate_limit_scope_ip(request)
     user, token, session_token = await register_student(
         db=db,
         arabic_name=req.arabic_name,
@@ -55,7 +57,7 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    ip_addr = request.client.host if request.client else None
+    ip_addr = get_rate_limit_scope_ip(request)
     user_agent = request.headers.get("user-agent")
 
     user, token, session_token, primary_role = await login_user(
@@ -84,7 +86,7 @@ async def logout(
     await logout_user(
         db,
         current_user.id,
-        session_token=request.cookies.get("session_token") or request.headers.get("X-Session-Token"),
+        session_id=getattr(request.state, "session_id", None),
         all_devices=False,
     )
     clear_auth_cookies(response)
@@ -110,15 +112,13 @@ async def forgot_password_endpoint(
     identifier = payload.get("identifier", "")
     from app.services.auth_service import request_password_reset
 
-    raw_token = await request_password_reset(db, identifier)
-    if raw_token:
-        import logging
-
-        logging.getLogger("uvicorn.error").info(
-            "Password reset token generated for identifier '%s***'. "
-            "In production, this would be sent via SMS/email provider.",
-            identifier[:4],
-        )
+    try:
+        await request_password_reset(db, identifier)
+    except PasswordResetDeliveryUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="خدمة إعادة تعيين كلمة المرور غير متاحة حالياً.",
+        ) from exc
     return {
         "message": "إذا كان البريد الإلكتروني أو رقم الهاتف مسجلاً لدينا، فستتم معالجة الطلب."
     }

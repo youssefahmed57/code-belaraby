@@ -38,6 +38,7 @@ def create_access_token(
     subject: Union[str, Any],
     expires_delta: Optional[timedelta] = None,
     role: str = "student",
+    sid: Optional[str] = None,
 ) -> str:
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     payload = {
@@ -47,6 +48,8 @@ def create_access_token(
         "iat": datetime.utcnow(),
         "jti": str(uuid.uuid4()),
     }
+    if sid:
+        payload["sid"] = sid
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 

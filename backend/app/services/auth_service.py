@@ -9,6 +9,10 @@ from fastapi import HTTPException, status
 import asyncio
 from app.db.models import User, Role, UserRole, UserSession, PasswordResetToken, AuditLog
 from app.core.security import get_password_hash, verify_password, create_access_token
+from app.services.password_reset_delivery_service import (
+    PasswordResetDeliveryService,
+    PasswordResetDeliveryUnavailable,
+)
 
 EGYPT_PHONE_REGEX = re.compile(r"^01[0125][0-9]{8}$")
 
@@ -44,7 +48,7 @@ async def register_student(
     parent_name: Optional[str] = None,
     parent_phone: Optional[str] = None,
     ip_address: Optional[str] = None
-) -> Tuple[User, str]:
+) -> Tuple[User, str, str]:
     normalized_phone = normalize_egypt_phone(phone_number)
     if not EGYPT_PHONE_REGEX.match(normalized_phone):
         raise HTTPException(
@@ -120,9 +124,10 @@ async def register_student(
         expires_at=datetime.utcnow() + timedelta(days=7)
     )
     db.add(user_session)
+    await db.flush()
+    token = create_access_token(subject=new_user.id, role="student", sid=user_session.id)
     await db.commit()
 
-    token = create_access_token(subject=new_user.id, role="student")
     return new_user, token, session_token
 
 async def login_user(
@@ -193,6 +198,7 @@ async def login_user(
         expires_at=datetime.utcnow() + timedelta(days=7)
     )
     db.add(user_session)
+    await db.flush()
 
     # Audit log
     db.add(AuditLog(
@@ -206,27 +212,39 @@ async def login_user(
 
     await db.commit()
 
-    token = create_access_token(subject=user.id, role=primary_role)
+    token = create_access_token(subject=user.id, role=primary_role, sid=user_session.id)
     return user, token, session_token, primary_role
 
-async def logout_user(db: AsyncSession, user_id: str, session_token: Optional[str] = None, all_devices: bool = False):
+async def revoke_user_sessions(
+    db: AsyncSession,
+    user_id: str,
+    session_id: Optional[str] = None,
+    all_devices: bool = False,
+):
     if all_devices:
         stmt = update(UserSession).where(UserSession.user_id == user_id).values(is_active=False)
-    elif session_token:
-        stmt = update(UserSession).where(UserSession.session_token == session_token).values(is_active=False)
+    elif session_id:
+        stmt = update(UserSession).where(
+            UserSession.user_id == user_id,
+            UserSession.id == session_id,
+        ).values(is_active=False)
     else:
         return
     await db.execute(stmt)
+
+
+async def logout_user(db: AsyncSession, user_id: str, session_id: Optional[str] = None, all_devices: bool = False):
+    await revoke_user_sessions(db, user_id=user_id, session_id=session_id, all_devices=all_devices)
     await db.commit()
 
-async def request_password_reset(db: AsyncSession, identifier: str) -> Optional[str]:
+async def request_password_reset(db: AsyncSession, identifier: str) -> bool:
     clean_id = identifier.strip()
     norm_phone = normalize_egypt_phone(clean_id)
     stmt = select(User).where((User.phone_number == norm_phone) | (User.email == clean_id.lower()))
     res = await db.execute(stmt)
     user = res.scalar_one_or_none()
     if not user:
-        return None
+        return False
 
     import hashlib
     raw_token = str(uuid.uuid4())
@@ -239,8 +257,14 @@ async def request_password_reset(db: AsyncSession, identifier: str) -> Optional[
         is_used=False
     )
     db.add(reset_entry)
+    await db.flush()
+    try:
+        await PasswordResetDeliveryService.deliver_reset_token(user, raw_token)
+    except PasswordResetDeliveryUnavailable:
+        await db.rollback()
+        raise
     await db.commit()
-    return raw_token
+    return True
 
 async def reset_password_with_token(db: AsyncSession, raw_token: str, new_password: str):
     if len(new_password) < 6:
@@ -269,5 +293,5 @@ async def reset_password_with_token(db: AsyncSession, raw_token: str, new_passwo
     user.locked_until = None
     reset_entry.is_used = True
 
-    await logout_user(db, user_id=user.id, all_devices=True)
+    await revoke_user_sessions(db, user_id=user.id, all_devices=True)
     await db.commit()

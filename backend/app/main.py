@@ -1,6 +1,5 @@
 import os
 from contextlib import asynccontextmanager
-from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -73,11 +72,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 def _origin_allowed(origin: str) -> bool:
-    if origin in settings.ALLOWED_ORIGINS or origin in settings.CSRF_TRUSTED_ORIGINS:
-        return True
-    parsed = urlparse(origin)
-    cookie_domain = settings.COOKIE_DOMAIN.lstrip(".")
-    return bool(cookie_domain and parsed.hostname and parsed.hostname.endswith(cookie_domain))
+    return settings.is_csrf_origin_trusted(origin)
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -139,11 +134,6 @@ app.include_router(settings_router, prefix=api_prefix)
 app.include_router(videos_router, prefix=api_prefix)
 app.include_router(health_router, prefix="")
 app.include_router(health_router, prefix=api_prefix)
-
-
-@app.get("/health")
-async def health_check():
-    return {"status": "alive", "service": settings.PROJECT_NAME, "environment": settings.ENVIRONMENT}
 
 
 @app.get("/")

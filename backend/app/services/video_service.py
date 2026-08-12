@@ -47,6 +47,13 @@ def _build_mock_token(video_id: str, student_id: str, expires_in_seconds: int) -
     return jwt.encode(payload, settings.VIDEO_SIGNING_SECRET, algorithm="HS256")
 
 
+def _ensure_real_video_provider(provider: str) -> None:
+    if settings.requires_isolated_code_execution() and settings.USE_MOCK_VIDEO_PROVIDER:
+        raise VideoProviderUnavailable("Mock video playback is disabled outside development and test.")
+    if not settings.is_video_provider_configured(provider):
+        raise VideoProviderUnavailable(f"{provider} playback is not fully configured.")
+
+
 async def _request_cloudflare_stream_token(video_id: str, expires_in_seconds: int) -> str:
     if not settings.CLOUDFLARE_STREAM_ACCOUNT_ID or not settings.CLOUDFLARE_STREAM_API_TOKEN:
         raise VideoProviderUnavailable("Cloudflare Stream API credentials are unavailable.")
@@ -115,6 +122,8 @@ async def get_video_playback_info(
     student_code = generate_student_code(student.id)
 
     if provider == "local":
+        if not settings.USE_MOCK_VIDEO_PROVIDER:
+            raise VideoProviderUnavailable("Local/mock video playback is disabled.")
         if not settings.is_development_like():
             raise VideoProviderUnavailable("Local/mock video playback is disabled outside development and test.")
         token = _build_mock_token(video_asset.id, student.id, expires_in_seconds)
@@ -131,6 +140,7 @@ async def get_video_playback_info(
         }
 
     if provider == "cloudflare_stream":
+        _ensure_real_video_provider(provider)
         if not settings.CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN:
             raise VideoProviderUnavailable("Cloudflare Stream playback domain is unavailable.")
         try:
@@ -151,6 +161,7 @@ async def get_video_playback_info(
         }
 
     if provider == "bunny_stream":
+        _ensure_real_video_provider(provider)
         bunny = _generate_bunny_hls_signature(video_asset.external_video_id, expires_in_seconds)
         base_url = f"https://vz-{bunny['library_id']}.b-cdn.net/{video_asset.external_video_id}"
         return {

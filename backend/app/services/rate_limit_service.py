@@ -1,3 +1,4 @@
+import ipaddress
 import math
 import time
 from collections import defaultdict
@@ -38,11 +39,46 @@ def _redis_key(rule: RateLimitRule, scope_key: str) -> str:
 
 
 def _scope_key(request: Request) -> str:
-    client_ip = request.client.host if request.client else "unknown"
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        client_ip = forwarded.split(",")[0].strip() or client_ip
-    return client_ip
+    return get_rate_limit_scope_ip(request)
+
+
+def _parse_ip(value: str) -> Optional[ipaddress._BaseAddress]:
+    try:
+        return ipaddress.ip_address(value.strip())
+    except ValueError:
+        return None
+
+
+def _is_trusted_proxy(client_ip: str) -> bool:
+    parsed_ip = _parse_ip(client_ip)
+    if parsed_ip is None:
+        return False
+    if client_ip in settings.TRUSTED_PROXY_IPS:
+        return True
+    return any(parsed_ip in network for network in settings.trusted_proxy_networks())
+
+
+def get_rate_limit_scope_ip(request: Request) -> str:
+    immediate_client = request.client.host if request.client else "unknown"
+    if not _is_trusted_proxy(immediate_client):
+        return immediate_client
+
+    forwarded_chain = request.headers.get("x-forwarded-for", "")
+    forwarded_ips = [item.strip() for item in forwarded_chain.split(",") if item.strip()]
+    if not forwarded_ips:
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip and _parse_ip(real_ip):
+            return real_ip.strip()
+        return immediate_client
+
+    full_chain = forwarded_ips + [immediate_client]
+    for candidate in reversed(full_chain):
+        if not _parse_ip(candidate):
+            continue
+        if _is_trusted_proxy(candidate):
+            continue
+        return candidate
+    return forwarded_ips[0]
 
 
 def _match_rule(request: Request) -> Optional[RateLimitRule]:

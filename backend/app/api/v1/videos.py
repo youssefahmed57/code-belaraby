@@ -2,7 +2,7 @@ import html
 import time
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -30,6 +30,17 @@ class VideoProgressRequest(BaseModel):
     video_id: str
     current_position: float = Field(..., ge=0)
     duration: float = Field(..., gt=0)
+
+
+def _authoritative_duration_seconds(lesson, video_asset) -> float:
+    if video_asset.duration_seconds and video_asset.duration_seconds > 0:
+        return float(video_asset.duration_seconds)
+    if lesson.estimated_duration_minutes and lesson.estimated_duration_minutes > 0:
+        return float(lesson.estimated_duration_minutes * 60)
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="تعذر تحديد مدة الفيديو بشكل موثوق.",
+    )
 
 
 def _compute_allowed_position(previous_position: float, previous_seen_at: datetime | None) -> float:
@@ -163,10 +174,11 @@ async def update_video_progress(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if req.current_position > req.duration:
-        raise HTTPException(status_code=400, detail="موضع التشغيل أكبر من مدة الفيديو.")
-
     lesson, video_asset = await require_accessible_video(db, current_user.id, req.lesson_id, req.video_id)
+    authoritative_duration = _authoritative_duration_seconds(lesson, video_asset)
+
+    if req.current_position > authoritative_duration:
+        raise HTTPException(status_code=400, detail="موضع التشغيل أكبر من مدة الفيديو الفعلية.")
 
     video_progress = await db.scalar(
         select(VideoProgress).where(
@@ -177,15 +189,15 @@ async def update_video_progress(
     )
 
     if not video_progress:
-        if req.current_position > min(30.0, req.duration * 0.2):
+        if req.current_position > min(30.0, authoritative_duration * 0.2):
             raise HTTPException(status_code=400, detail="تم رفض قفزة مشاهدة غير منطقية في أول تحديث.")
         video_progress = VideoProgress(
             student_id=current_user.id,
             lesson_id=lesson.id,
             video_asset_id=video_asset.id,
             last_playback_position=req.current_position,
-            total_watched_seconds=req.current_position,
-            completion_percentage=round((req.current_position / req.duration) * 100.0, 2),
+            total_watched_seconds=min(authoritative_duration, req.current_position),
+            completion_percentage=round((req.current_position / authoritative_duration) * 100.0, 2),
         )
         db.add(video_progress)
     else:
@@ -198,13 +210,13 @@ async def update_video_progress(
         if req.current_position >= previous_position:
             incremental_watch = req.current_position - previous_position
         video_progress.total_watched_seconds = min(
-            req.duration,
+            authoritative_duration,
             max(video_progress.total_watched_seconds or 0.0, 0.0) + incremental_watch,
         )
         video_progress.last_playback_position = req.current_position
         video_progress.last_watched_at = datetime.utcnow()
         video_progress.completion_percentage = round(
-            min(100.0, (video_progress.total_watched_seconds / req.duration) * 100.0),
+            min(100.0, (video_progress.total_watched_seconds / authoritative_duration) * 100.0),
             2,
         )
         if req.current_position < previous_position:

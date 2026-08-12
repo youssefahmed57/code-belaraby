@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     CodingProblem,
+    Course,
     Enrolment,
     Lesson,
     LessonPrerequisite,
@@ -15,7 +16,6 @@ from app.db.models import (
     Quiz,
     User,
     VideoAsset,
-    Course,
 )
 
 
@@ -60,6 +60,56 @@ async def get_lesson_by_reference(db: AsyncSession, lesson_ref: str) -> Optional
     return result.scalar_one_or_none()
 
 
+async def _ordered_published_lessons(db: AsyncSession, course_id: str) -> list[Lesson]:
+    result = await db.execute(
+        select(Lesson)
+        .join(Module, Lesson.module_id == Module.id)
+        .join(Course, Module.course_id == Course.id)
+        .where(
+            Course.id == course_id,
+            Course.status == "published",
+            Module.status == "published",
+            Lesson.publishing_status == "published",
+        )
+        .order_by(
+            Module.order.asc(),
+            Module.created_at.asc(),
+            Module.id.asc(),
+            Lesson.order.asc(),
+            Lesson.created_at.asc(),
+            Lesson.id.asc(),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def _published_prerequisite_ids(db: AsyncSession, lesson_id: str) -> list[str]:
+    result = await db.execute(
+        select(LessonPrerequisite.prerequisite_lesson_id)
+        .join(Lesson, LessonPrerequisite.prerequisite_lesson_id == Lesson.id)
+        .join(Module, Lesson.module_id == Module.id)
+        .join(Course, Module.course_id == Course.id)
+        .where(
+            LessonPrerequisite.lesson_id == lesson_id,
+            Lesson.publishing_status == "published",
+            Module.status == "published",
+            Course.status == "published",
+        )
+        .order_by(Module.order.asc(), Lesson.order.asc(), Lesson.id.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def _is_completed_lesson(db: AsyncSession, student_id: str, lesson_id: str) -> bool:
+    progress = await db.scalar(
+        select(LessonProgress).where(
+            LessonProgress.student_id == student_id,
+            LessonProgress.lesson_id == lesson_id,
+        )
+    )
+    return bool(progress and progress.status == "completed")
+
+
 async def check_lesson_access(db: AsyncSession, student_id: str, lesson_id: str) -> bool:
     row = (
         await db.execute(
@@ -86,28 +136,30 @@ async def check_lesson_access(db: AsyncSession, student_id: str, lesson_id: str)
             LessonProgress.lesson_id == lesson.id,
         )
     )
-    if progress and (progress.manual_override or progress.status in {"available", "in_progress", "completed"}):
+    if progress and progress.manual_override:
         return True
 
-    prereq_ids = (
-        await db.execute(
-            select(LessonPrerequisite.prerequisite_lesson_id).where(LessonPrerequisite.lesson_id == lesson.id)
-        )
-    ).scalars().all()
+    prerequisite_ids = await _published_prerequisite_ids(db, lesson.id)
+    if prerequisite_ids:
+        for prerequisite_id in prerequisite_ids:
+            if not await _is_completed_lesson(db, student_id, prerequisite_id):
+                return False
+        return True
 
-    if not prereq_ids:
-        return lesson.order == 1
+    if course.unlock_mode == "open":
+        return True
 
-    for prereq_id in prereq_ids:
-        prereq_progress = await db.scalar(
-            select(LessonProgress).where(
-                LessonProgress.student_id == student_id,
-                LessonProgress.lesson_id == prereq_id,
-            )
-        )
-        if not prereq_progress or prereq_progress.status != "completed":
-            return False
-    return True
+    ordered_lessons = await _ordered_published_lessons(db, course.id)
+    lesson_ids = [ordered_lesson.id for ordered_lesson in ordered_lessons]
+    if lesson.id not in lesson_ids:
+        return False
+
+    lesson_index = lesson_ids.index(lesson.id)
+    if lesson_index == 0:
+        return True
+
+    previous_lesson_id = lesson_ids[lesson_index - 1]
+    return await _is_completed_lesson(db, student_id, previous_lesson_id)
 
 
 async def require_accessible_lesson(db: AsyncSession, student_id: str, lesson_ref: str) -> Lesson:
