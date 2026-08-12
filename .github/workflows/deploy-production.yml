@@ -1,17 +1,42 @@
 name: Deploy Production to VPS
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows:
+      - Verify Platform
+    types:
+      - completed
+  workflow_dispatch:
 
 jobs:
   deploy:
-    name: SSH Deploy to VPS Production
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-postgres-password
+      SECRET_KEY: ci_test_secret_key_which_is_long_enough_123456
+      CSRF_SECRET: ci_test_csrf_secret_key_which_is_long_enough_1234
+      SIGNED_URL_SECRET: ci_signed_url_secret_key_which_is_long_enough
+      RECEIPT_SIGNING_SECRET: ci_receipt_signing_secret_which_is_long_enough
+      VIDEO_SIGNING_SECRET: ci_video_signing_secret_which_is_long_enough__
+      DATABASE_URL: postgresql+asyncpg://postgres:ci-postgres-password@postgres:5432/code_journey_db
+      SYNC_DATABASE_URL: postgresql://postgres:ci-postgres-password@postgres:5432/code_journey_db
+      REDIS_URL: redis://redis:6379/0
+      JUDGE0_URL: http://judge0:2358
+      COOKIE_DOMAIN: .codejourney.example
+      ALLOWED_ORIGINS: '["https://app.codejourney.example"]'
+      CSRF_TRUSTED_ORIGINS: '["https://app.codejourney.example"]'
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Validate merged Docker config
+        run: docker compose -f docker-compose.yml -f docker-compose.production.yml config
 
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -21,18 +46,13 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
-            set -e
-            echo "=== 1. Navigating to project directory ==="
+            set -eu
             cd /root/code-belaraby || cd /var/www/code-belaraby || exit 1
-
-            echo "=== 2. Pulling latest code from main branch ==="
+            git fetch origin
             git checkout main
-            git pull origin main
-
-            echo "=== 3. Rebuilding & restarting production Docker containers ==="
-            docker compose -f docker-compose.production.yml up -d --build --remove-orphans
-
-            echo "=== 4. Cleaning up unused Docker images ==="
+            git pull --ff-only origin main
+            docker compose -f docker-compose.yml -f docker-compose.production.yml config > /tmp/codejourney-compose-config.txt
+            docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --build --remove-orphans
             docker image prune -f
-
-            echo "=== Deployment Successful! ==="
+            sleep 10
+            curl -fsS http://127.0.0.1:8000/ready > /dev/null

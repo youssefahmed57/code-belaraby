@@ -1,5 +1,7 @@
 # 📦 01. Repository Inventory & Discovery Report
 
+> Historical snapshot from Saturday, August 2, 2026. This file is not the current deployment authority and may describe pre-hardening behavior. For the active production/staging design, use `docs/deployment-architecture.md`.
+
 **Audit Date**: 2026-08-02  
 **Branch**: `production-readiness-audit`  
 **Auditor**: Senior Production Readiness & Full-Stack Security Auditor  

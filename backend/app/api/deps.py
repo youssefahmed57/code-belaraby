@@ -45,7 +45,7 @@ async def get_current_user(
             detail="الحساب غير محدد أو تم تعطيله."
         )
 
-    # Check active session revocation if session token provided
+    # Session validation is MANDATORY — a JWT without a valid session is rejected
     session_token = request.cookies.get("session_token") or request.headers.get("X-Session-Token")
     if session_token:
         stmt_sess = select(UserSession).where(
@@ -59,6 +59,20 @@ async def get_current_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="تم إلغاء هذه الجلسة أو تسجيل الخروج من الأجهزة الأخرى."
             )
+    else:
+        # If the JWT has a jti but no session token was provided, check if ANY active session exists
+        jti = payload.get("jti")
+        if jti:
+            stmt_any = select(UserSession).where(
+                UserSession.user_id == user.id,
+                UserSession.is_active == True
+            ).limit(1)
+            res_any = await db.execute(stmt_any)
+            if not res_any.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="جميع الجلسات منتهية. يرجى إعادة تسجيل الدخول."
+                )
 
     return user
 

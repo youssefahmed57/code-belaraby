@@ -1,6 +1,10 @@
 import sys
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
 
 # Ensure UTF-8 stdout on Windows console
 if sys.platform == "win32":
@@ -12,7 +16,7 @@ if sys.platform == "win32":
 # Ensure parent directory is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from app.core.database import SyncSessionLocal, Base, sync_engine
+from app.core.database import SyncSessionLocal
 from app.core.security import get_password_hash
 from app.db.models import (
     User, Role, Permission, RolePermission, UserRole, Course, CourseInstructor,
@@ -21,9 +25,16 @@ from app.db.models import (
     LessonProgress, CourseProgress
 )
 
+def upgrade_schema_to_head():
+    backend_root = Path(__file__).resolve().parents[2]
+    alembic_ini = backend_root / "alembic.ini"
+    alembic_cfg = Config(str(alembic_ini))
+    alembic_cfg.set_main_option("script_location", str(backend_root / "alembic"))
+    command.upgrade(alembic_cfg, "head")
+
+
 def seed_db():
-    print("Creating all tables in database...")
-    Base.metadata.create_all(bind=sync_engine)
+    print("Seeding existing database schema...")
     session = SyncSessionLocal()
 
     try:
@@ -520,4 +531,5 @@ print("العمر:", age)
         session.close()
 
 if __name__ == "__main__":
+    upgrade_schema_to_head()
     seed_db()

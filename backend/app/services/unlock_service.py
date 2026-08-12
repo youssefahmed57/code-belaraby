@@ -75,9 +75,15 @@ async def unlock_next_lesson(db: AsyncSession, student_id: str, current_lesson: 
     next_lesson = res_next.scalars().first()
 
     if not next_lesson and course_id:
+        # Fetch current module's order to find the NEXT module
+        stmt_cur_mod = select(Module).where(Module.id == current_lesson.module_id)
+        res_cur_mod = await db.execute(stmt_cur_mod)
+        current_module = res_cur_mod.scalar_one_or_none()
+        current_module_order = current_module.order if current_module else 0
+
         stmt_mod = select(Module).where(
             Module.course_id == course_id,
-            Module.order > 1,
+            Module.order > current_module_order,
             Module.status == "published"
         ).order_by(Module.order)
         res_mod = await db.execute(stmt_mod)

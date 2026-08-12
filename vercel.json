@@ -2,12 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "installCommand": "npm install",
-  "outputDirectory": ".next",
-  "rewrites": [
-    {
-      "source": "/api/v1/:path*",
-      "destination": "https://code-belaraby-backend-staging.onrender.com/api/v1/:path*"
-    }
-  ]
+  "installCommand": "npm ci",
+  "outputDirectory": ".next"
 }

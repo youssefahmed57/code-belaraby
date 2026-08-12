@@ -7,7 +7,8 @@ logger = logging.getLogger("prestart")
 def main():
     logger.info("Initializing database migrations and bootstrapping seed data...")
     try:
-        from app.db.seed import seed_db
+        from app.db.seed import seed_db, upgrade_schema_to_head
+        upgrade_schema_to_head()
         seed_db()
         logger.info("Database bootstrap completed successfully.")
     except Exception as e:

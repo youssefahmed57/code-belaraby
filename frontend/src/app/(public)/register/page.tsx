@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { setStoredUser } from "@/lib/auth";
 import { User, Phone, Lock, BookOpen, AlertCircle, CheckCircle2, Eye, EyeOff, Check, X } from "lucide-react";
 
 export default function RegisterPage() {
@@ -56,10 +57,8 @@ export default function RegisterPage() {
         email: form.email.trim()
       };
       const res = await api.post("/auth/register", cleanData);
-      const { access_token, user, role } = res.data;
-
-      localStorage.setItem("access_token", access_token);
-      localStorage.setItem("user_info", JSON.stringify({ ...user, role }));
+      const { user, role } = res.data;
+      setStoredUser({ ...user, role });
 
       setSuccessMsg("✓ تم إنشاء حسابك بنجاح! جاري نقلك إلى لوحة الطالب...");
       setTimeout(() => {

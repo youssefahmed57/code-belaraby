@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import (
-    Column, String, Integer, Float, Boolean, Text, DateTime, ForeignKey, Enum, JSON, Table, Index, UniqueConstraint
+    Column, String, Integer, Float, Boolean, Text, DateTime, ForeignKey, Enum, JSON, Table, Index, UniqueConstraint, Numeric
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -108,8 +108,8 @@ class Course(Base):
     cover_image = Column(Text, nullable=True)
     trailer_video_url = Column(Text, nullable=True)
     instructor_id = Column(String(36), ForeignKey("users.id"), nullable=True)
-    price = Column(Float, nullable=False, default=0.0)
-    discount_price = Column(Float, nullable=True)
+    price = Column(Numeric(12, 2), nullable=False, default=0)
+    discount_price = Column(Numeric(12, 2), nullable=True)
     duration_hours = Column(Float, default=10.0)
     estimated_learning_hours = Column(Float, default=15.0)
     requirements = Column(JSON, default=list)
@@ -242,6 +242,10 @@ class Enrolment(Base):
     course = relationship("Course", back_populates="enrolments")
     payment = relationship("Payment", foreign_keys=[payment_id])
 
+    __table_args__ = (
+        UniqueConstraint('student_id', 'course_id', name='uq_enrolment_student_course'),
+    )
+
 class Payment(Base):
     __tablename__ = "payments"
 
@@ -249,8 +253,8 @@ class Payment(Base):
     reference_code = Column(String(100), unique=True, index=True, nullable=False)
     student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     course_id = Column(String(36), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True)
-    amount_expected = Column(Float, nullable=False)
-    amount_submitted = Column(Float, nullable=True)
+    amount_expected = Column(Numeric(12, 2), nullable=False)
+    amount_submitted = Column(Numeric(12, 2), nullable=True)
     payment_method = Column(String(50), nullable=False) # instapay, vodafone_cash, whatsapp
     sender_identifier = Column(String(100), nullable=True)
     receipt_file_key = Column(String(500), nullable=True)
@@ -680,7 +684,7 @@ class Coupon(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     code = Column(String(50), unique=True, index=True, nullable=False)
     discount_type = Column(String(20), default="percentage", nullable=False) # percentage, fixed
-    discount_value = Column(Float, nullable=False) # e.g. 20.0 for 20% or 50.0 for 50 LE
+    discount_value = Column(Numeric(12, 2), nullable=False) # e.g. 20.0 for 20% or 50.0 for 50 LE
     start_date = Column(DateTime, default=datetime.utcnow, nullable=False)
     end_date = Column(DateTime, nullable=True)
     max_uses = Column(Integer, default=100, nullable=False)
@@ -696,7 +700,7 @@ class CouponUsage(Base):
     coupon_id = Column(String(36), ForeignKey("coupons.id", ondelete="CASCADE"), nullable=False)
     student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     payment_id = Column(String(36), ForeignKey("payments.id"), nullable=True)
-    discount_amount = Column(Float, nullable=False)
+    discount_amount = Column(Numeric(12, 2), nullable=False)
     used_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     __table_args__ = (

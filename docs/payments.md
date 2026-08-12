@@ -10,7 +10,7 @@ Code Journey Academy implements a secure manual payment workflow tailored for Eg
 3. **External Transfer**: Student transfers payment to:
    - **InstaPay**: `01001340533`
    - **Vodafone Cash**: `01001340533`
-4. **Receipt Submission**: Student uploads a screenshot image (JPG/PNG) or PDF proof, enters sender phone number and submitted amount. Status transitions to `Pending Review`.
+4. **Receipt Submission**: Student uploads a screenshot image (JPG/PNG/WebP), enters sender phone number and submitted amount. Status transitions to `Pending Review`.
 5. **Admin Review Drawer**: Admin verifies transaction in the admin panel, previews receipt, and clicks **Approve**.
 6. **Transactional Activation**: Approval transactionally:
    - Updates payment status to `Approved`.

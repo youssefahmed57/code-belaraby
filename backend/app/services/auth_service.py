@@ -20,6 +20,20 @@ def normalize_egypt_phone(phone: str) -> str:
         cleaned = "0" + cleaned[4:]
     return cleaned
 
+async def get_primary_role(db: AsyncSession, user_id: str) -> str:
+    stmt_roles = select(Role.name).join(UserRole).where(UserRole.user_id == user_id)
+    res_roles = await db.execute(stmt_roles)
+    role_names = [r for (r,) in res_roles.all()]
+
+    if "super_admin" in role_names:
+        return "super_admin"
+    if "admin" in role_names:
+        return "admin"
+    if "instructor" in role_names:
+        return "instructor"
+    return "student"
+
+
 async def register_student(
     db: AsyncSession,
     arabic_name: str,
@@ -131,6 +145,14 @@ async def login_user(
             detail="رقم الهاتف أو كلمة المرور غير صحيحة."
         )
 
+    # Check if account is currently locked out
+    if user.locked_until and user.locked_until > datetime.utcnow():
+        remaining = int((user.locked_until - datetime.utcnow()).total_seconds() / 60) + 1
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"الحساب مقفل مؤقتاً بسبب محاولات فاشلة متعددة. يرجى المحاولة بعد {remaining} دقيقة."
+        )
+
     # Verify password first (async threadpool offload for high concurrency)
     is_valid_pw = await asyncio.to_thread(verify_password, password, user.hashed_password)
     if not is_valid_pw:
@@ -160,18 +182,7 @@ async def login_user(
             detail="حسابك معطل أو قيد المراجعة. يرجى التواصل مع الدعم الفني."
         )
 
-    # Get primary role
-    stmt_roles = select(Role.name).join(UserRole).where(UserRole.user_id == user.id)
-    res_roles = await db.execute(stmt_roles)
-    role_names = [r for (r,) in res_roles.all()]
-    
-    primary_role = "student"
-    if "super_admin" in role_names:
-        primary_role = "super_admin"
-    elif "admin" in role_names:
-        primary_role = "admin"
-    elif "instructor" in role_names:
-        primary_role = "instructor"
+    primary_role = await get_primary_role(db, user.id)
 
     session_token = str(uuid.uuid4())
     user_session = UserSession(
@@ -260,4 +271,3 @@ async def reset_password_with_token(db: AsyncSession, raw_token: str, new_passwo
 
     await logout_user(db, user_id=user.id, all_devices=True)
     await db.commit()
-

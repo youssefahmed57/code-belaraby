@@ -13,7 +13,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-code_journey_db}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_password_123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     # Notice: NO ports section to prevent public exposure
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -46,17 +46,28 @@ services:
       dockerfile: Dockerfile
     container_name: code_journey_backend
     restart: always
+    command: ["./start.sh"]
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       SECRET_KEY: ${SECRET_KEY}
       CSRF_SECRET: ${CSRF_SECRET}
+      SIGNED_URL_SECRET: ${SIGNED_URL_SECRET}
+      RECEIPT_SIGNING_SECRET: ${RECEIPT_SIGNING_SECRET}
+      VIDEO_SIGNING_SECRET: ${VIDEO_SIGNING_SECRET}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-yourdomain.com}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-none}
       SECURE_COOKIES: ${SECURE_COOKIES:-true}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-[]}
       DATABASE_URL: ${DATABASE_URL}
       SYNC_DATABASE_URL: ${SYNC_DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
+      JUDGE0_URL: ${JUDGE0_URL}
+      RUN_SEED: ${RUN_SEED:-false}
+      PRIVATE_STORAGE_LOCAL_DIR: /app/private_storage
+      PUBLIC_ASSETS_LOCAL_DIR: /app/public_assets
       ALLOW_LOCAL_RUNNER_IN_PROD: ${ALLOW_LOCAL_RUNNER_IN_PROD:-false}
+      ALLOW_UNSAFE_LOCAL_CODE_EXECUTION: ${ALLOW_UNSAFE_LOCAL_CODE_EXECUTION:-false}
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -65,7 +76,8 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - backend_uploads:/app/uploads
+      - private_receipts:/app/private_storage
+      - public_assets:/app/public_assets
     networks:
       - internal_net
     healthcheck:
@@ -84,9 +96,16 @@ services:
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       SECRET_KEY: ${SECRET_KEY}
+      CSRF_SECRET: ${CSRF_SECRET}
+      SIGNED_URL_SECRET: ${SIGNED_URL_SECRET}
+      RECEIPT_SIGNING_SECRET: ${RECEIPT_SIGNING_SECRET}
+      VIDEO_SIGNING_SECRET: ${VIDEO_SIGNING_SECRET}
       DATABASE_URL: ${DATABASE_URL}
+      SYNC_DATABASE_URL: ${SYNC_DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
+      JUDGE0_URL: ${JUDGE0_URL}
       ALLOW_LOCAL_RUNNER_IN_PROD: ${ALLOW_LOCAL_RUNNER_IN_PROD:-false}
+      ALLOW_UNSAFE_LOCAL_CODE_EXECUTION: ${ALLOW_UNSAFE_LOCAL_CODE_EXECUTION:-false}
     depends_on:
       redis:
         condition: service_healthy
@@ -102,7 +121,7 @@ services:
     environment:
       PGHOST: postgres
       PGUSER: ${POSTGRES_USER:-postgres}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_password_123}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       PGDATABASE: ${POSTGRES_DB:-code_journey_db}
     entrypoint: ["sh", "-c", "while true; do sleep 86400; pg_dump -U $$PGUSER $$PGDATABASE > /backups/backup_$$(date +%Y%m%d_%H%M%S).sql; done"]
     volumes:
@@ -116,5 +135,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  backend_uploads:
+  private_receipts:
+  public_assets:
   backups_data:

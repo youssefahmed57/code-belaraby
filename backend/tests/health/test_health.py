@@ -5,7 +5,9 @@ from httpx import AsyncClient
 async def test_health_check(async_client: AsyncClient):
     response = await async_client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
+    payload = response.json()
+    assert payload["status"] == "alive"
+    assert payload["service"]
 
 @pytest.mark.asyncio
 async def test_readiness_probe(async_client: AsyncClient):
@@ -13,4 +15,4 @@ async def test_readiness_probe(async_client: AsyncClient):
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ready"
-    assert data["database"] == "connected"
+    assert data["database"] == "ready"

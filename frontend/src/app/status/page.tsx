@@ -25,7 +25,8 @@ export default function StatusPage() {
   const fetchStatus = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"}/status/public`);
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+      const res = await fetch(`${apiBase}/status/public`);
       if (res.ok) {
         const json = await res.json();
         setData(json);

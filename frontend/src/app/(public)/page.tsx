@@ -121,10 +121,10 @@ export default function HomePage() {
 
                 <div className="bg-navy-950 rounded-xl p-4 font-mono text-xs text-slate-200 space-y-1.5 dir-ltr text-left border border-slate-800/80">
                   <p className="text-slate-400"># كورس البرمجة للصف الأول الثانوي - كود بالعربي</p>
-                  <p><span className="text-purple-400">student_name</span> = <span className="text-emerald-400">"طالب كود بالعربي"</span></p>
+                  <p><span className="text-purple-400">student_name</span> = <span className="text-emerald-400">&quot;طالب كود بالعربي&quot;</span></p>
                   <p><span className="text-purple-400">score</span> = <span className="text-cyan-400">100</span></p>
                   <p className="pt-1"><span className="text-blue-400">if</span> score &gt;= <span className="text-cyan-400">50</span>:</p>
-                  <p className="pl-4 text-emerald-400">print("مبروك لقد اجتزت التحدي بنجاح!")</p>
+                  <p className="pl-4 text-emerald-400">print(&quot;مبروك لقد اجتزت التحدي بنجاح!&quot;)</p>
                 </div>
 
                 <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs">

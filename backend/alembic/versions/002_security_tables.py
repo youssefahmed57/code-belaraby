@@ -7,7 +7,6 @@ Create Date: 2026-08-05 22:30:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.engine.reflection import Inspector
 
 revision = '002_security_tables'
 down_revision = '001_initial_schema'
@@ -16,7 +15,7 @@ depends_on = None
 
 def upgrade() -> None:
     bind = op.get_bind()
-    inspector = Inspector.from_engine(bind)
+    inspector = sa.inspect(bind)
 
     # 1. User table additions
     user_columns = [c['name'] for c in inspector.get_columns('users')]
@@ -40,13 +39,9 @@ def upgrade() -> None:
         op.add_column('payments', sa.Column('receipt_hash', sa.String(64), nullable=True))
         op.create_index('ix_payments_receipt_hash', 'payments', ['receipt_hash'])
 
-    # Ensure all newly added tables are created if missing
-    from app.core.database import Base
-    Base.metadata.create_all(bind=bind)
-
 def downgrade() -> None:
     bind = op.get_bind()
-    inspector = Inspector.from_engine(bind)
+    inspector = sa.inspect(bind)
 
     payment_columns = [c['name'] for c in inspector.get_columns('payments')]
     if 'receipt_hash' in payment_columns:

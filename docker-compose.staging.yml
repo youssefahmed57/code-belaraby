@@ -1,15 +1,25 @@
-name: code_journey_academy_staging
+# Staging override file. Use with:
+# docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
 
 services:
   backend:
     environment:
       ENVIRONMENT: staging
-      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-STAGING_FRONTEND_DOMAIN}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-'["https://STAGING_FRONTEND_DOMAIN"]'}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-staging.codebelaraby.com}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-'["https://staging.codebelaraby.com"]'}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-'["https://staging.codebelaraby.com"]'}
+      COOKIE_SAMESITE: "none"
       SECURE_COOKIES: "true"
+      RUN_SEED: "false"
       ALLOW_LOCAL_RUNNER_IN_PROD: "false"
+      ALLOW_UNSAFE_LOCAL_CODE_EXECUTION: "false"
+      USE_MOCK_VIDEO_PROVIDER: "false"
+      USE_MOCK_JUDGE0: "false"
+    restart: unless-stopped
 
   execution-worker:
     environment:
       ENVIRONMENT: staging
       ALLOW_LOCAL_RUNNER_IN_PROD: "false"
+      ALLOW_UNSAFE_LOCAL_CODE_EXECUTION: "false"
+    restart: unless-stopped

@@ -72,17 +72,18 @@ export default function AdminDashboardPage() {
   };
 
   const handlePreviewReceipt = async (fileKey: string) => {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://a12tqtb1zoht2490gpbgg0ea.72.62.148.31.sslip.io/api/v1";
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
     try {
       const res = await api.post(`/payments/admin/generate-preview-url?file_key=${encodeURIComponent(fileKey)}`);
       let rawUrl = res.data.preview_url || res.data.signed_url || `/payments/preview?token=${res.data.token}`;
       if (rawUrl.startsWith("/")) {
         const serverOrigin = apiBase.replace(/\/api\/v1\/?$/, "");
-        rawUrl = `${serverOrigin}${rawUrl}`;
+        rawUrl = serverOrigin ? `${serverOrigin}${rawUrl}` : rawUrl;
       }
       setSelectedReceipt(rawUrl);
     } catch {
-      setSelectedReceipt(`${apiBase}/payments/preview?token=${encodeURIComponent(fileKey)}`);
+      setSelectedReceipt(null);
+      alert("تعذر إنشاء رابط معاينة مؤقت لهذا الإيصال حالياً.");
     }
   };
 
@@ -115,7 +116,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const exportCsvUrl = `${process.env.NEXT_PUBLIC_API_URL || "https://a12tqtb1zoht2490gpbgg0ea.72.62.148.31.sslip.io/api/v1"}/admin/export-csv`;
+  const exportCsvUrl = `${process.env.NEXT_PUBLIC_API_URL || "/api/v1"}/admin/export-csv`;
 
   return (
     <div className="min-h-screen bg-navy-900 text-white p-4 sm:p-6 lg:p-8 space-y-8">

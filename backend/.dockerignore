@@ -1,0 +1,42 @@
+# Security - never copy secrets into Docker image
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.crt
+
+# Development artifacts
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+*.egg
+
+# Database files
+*.db
+*.sqlite3
+code_journey.db
+
+# Uploads and storage
+uploads/
+storage_uploads/
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+
+# Documentation
+README.md
+docs/
+
+# Tests (optional - include if needed in CI)
+# tests/

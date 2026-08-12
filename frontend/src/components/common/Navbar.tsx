@@ -1,36 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
-import { Code2, LogOut, LayoutDashboard, Shield, Menu, X, ChevronLeft } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Code2, LayoutDashboard, LogOut, Menu, Shield, X, ChevronLeft } from "lucide-react";
 
+import { fetchCurrentUser, getStoredUser, logoutCurrentSession } from "@/lib/auth";
+import { api } from "@/lib/api";
 export default function Navbar() {
   const [user, setUser] = useState<any>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    const userInfo = localStorage.getItem("user_info");
-    if (userInfo) {
-      try {
-        setUser(JSON.parse(userInfo));
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    const cachedUser = getStoredUser();
+    if (cachedUser) setUser(cachedUser);
+
+    let active = true;
+    fetchCurrentUser().then((freshUser) => {
+      if (active) setUser(freshUser);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user_info");
-    window.location.href = "/";
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (e) {
+      // Ignore errors during logout
+    }
+    window.location.href = '/login';
   };
 
   return (
     <nav className="sticky top-0 z-50 bg-navy-950/90 backdrop-blur-md border-b border-slate-800/80 transition-all h-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          
-          {/* Brand Logo */}
           <Link href="/" className="flex items-center gap-3.5 group">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-brand-blue via-cyan-400 to-blue-600 p-0.5 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform duration-300">
               <div className="w-full h-full bg-navy-950 rounded-[14px] flex items-center justify-center">
@@ -45,7 +50,6 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Desktop Nav Links */}
           <div className="hidden lg:flex items-center gap-7 text-[15px] font-semibold text-slate-200">
             <Link href="/" className="hover:text-brand-blue transition-colors py-1">الرئيسية</Link>
             <Link href="/courses" className="hover:text-brand-blue transition-colors py-1">الكورسات المتاحة</Link>
@@ -56,7 +60,6 @@ export default function Navbar() {
             <Link href="/#contact" className="hover:text-brand-blue transition-colors py-1">تواصل معنا</Link>
           </div>
 
-          {/* Auth Controls */}
           <div className="hidden md:flex items-center gap-3">
             {user ? (
               <div className="flex items-center gap-3">
@@ -105,7 +108,6 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Toggle Button */}
           <div className="lg:hidden flex items-center">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -118,7 +120,6 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="lg:hidden bg-navy-950/95 backdrop-blur-xl border-b border-slate-800 px-6 pt-4 pb-8 space-y-6">
           <div className="flex flex-col space-y-4 font-semibold text-slate-200 text-[15px] pt-2">

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { setStoredUser } from "@/lib/auth";
 import { Phone, Lock, LogIn, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
@@ -22,10 +23,8 @@ export default function LoginPage() {
 
     try {
       const res = await api.post("/auth/login", { identifier: cleanIdentifier, password });
-      const { access_token, user, role } = res.data;
-      
-      localStorage.setItem("access_token", access_token);
-      localStorage.setItem("user_info", JSON.stringify({ ...user, role }));
+      const { user, role } = res.data;
+      setStoredUser({ ...user, role });
 
       if (role === "admin" || role === "super_admin") {
         window.location.href = "/admin";

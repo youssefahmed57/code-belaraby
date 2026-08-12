@@ -486,7 +486,7 @@ export default function PlaygroundPage() {
                 </div>
               ) : !executionStatus ? (
                 <div className="text-slate-500 text-center py-10">
-                  اضغط على زر "تشغيل الكود" لرؤية المخرجات المباشرة هنا.
+                  اضغط على زر &quot;تشغيل الكود&quot; لرؤية المخرجات المباشرة هنا.
                 </div>
               ) : (
                 <div className="space-y-4">

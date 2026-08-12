@@ -1,132 +1,195 @@
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, List, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
-from fastapi import HTTPException, status
+from decimal import Decimal
+from typing import Optional
 
-from app.db.models import Payment, PaymentEvent, Enrolment, Course, User, AuditLog, Notification, LessonProgress, Lesson, Module
+from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import (
+    AuditLog,
+    Course,
+    Enrolment,
+    Lesson,
+    LessonProgress,
+    Module,
+    Notification,
+    Payment,
+    PaymentEvent,
+)
+
+
+PAYMENT_TRANSITIONS = {
+    "draft": {"awaiting_receipt", "cancelled"},
+    "awaiting_receipt": {"pending_review", "cancelled"},
+    "pending_review": {"approved", "rejected", "more_info_required"},
+    "more_info_required": {"pending_review", "cancelled"},
+    "approved": set(),
+    "rejected": {"pending_review"},
+    "cancelled": set(),
+    "refunded": set(),
+}
+
+
+def validate_payment_transition(current_status: str, new_status: str) -> None:
+    allowed = PAYMENT_TRANSITIONS.get(current_status, set())
+    if new_status not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"لا يمكن تغيير حالة الدفع من '{current_status}' إلى '{new_status}'.",
+        )
+
 
 def generate_payment_reference() -> str:
-    # Format: PAY-YYYYMMDD-XXXX
-    date_str = datetime.utcnow().strftime("%Y%m%d")
-    random_str = str(uuid.uuid4().hex[:6]).upper()
-    return f"PAY-{date_str}-{random_str}"
+    return f"PAY-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+
+
+async def _first_published_lesson(db: AsyncSession, course_id: str) -> Optional[Lesson]:
+    first_module = await db.scalar(
+        select(Module)
+        .where(Module.course_id == course_id, Module.status == "published")
+        .order_by(Module.order)
+        .limit(1)
+    )
+    if not first_module:
+        return None
+    return await db.scalar(
+        select(Lesson)
+        .where(Lesson.module_id == first_module.id, Lesson.publishing_status == "published")
+        .order_by(Lesson.order)
+        .limit(1)
+    )
+
 
 async def create_payment_order(
     db: AsyncSession,
     student_id: str,
     course_id: str,
-    payment_method: str
+    payment_method: str,
 ) -> Payment:
-    # Check course
-    stmt_c = select(Course).where(Course.id == course_id)
-    res_c = await db.execute(stmt_c)
-    course = res_c.scalar_one_or_none()
+    course = await db.scalar(select(Course).where(Course.id == course_id))
     if not course:
         raise HTTPException(status_code=404, detail="الكورس غير موجود.")
 
-    ref_code = generate_payment_reference()
     payment = Payment(
-        reference_code=ref_code,
+        reference_code=generate_payment_reference(),
         student_id=student_id,
         course_id=course_id,
-        amount_expected=course.discount_price if course.discount_price else course.price,
+        amount_expected=course.discount_price if course.discount_price is not None else course.price,
         payment_method=payment_method,
-        status="awaiting_receipt"
+        status="awaiting_receipt",
     )
     db.add(payment)
     await db.flush()
 
-    db.add(PaymentEvent(
-        payment_id=payment.id,
-        previous_status=None,
-        new_status="awaiting_receipt",
-        actor_id=student_id,
-        comment="تم إنشاء طلب الدفع وفي انتظار رفع الصورة"
-    ))
+    db.add(
+        PaymentEvent(
+            payment_id=payment.id,
+            previous_status=None,
+            new_status="awaiting_receipt",
+            actor_id=student_id,
+            comment="تم إنشاء طلب الدفع وفي انتظار رفع الإيصال.",
+        )
+    )
 
     await db.commit()
     await db.refresh(payment)
     return payment
+
 
 async def submit_payment_receipt(
     db: AsyncSession,
     payment_id: str,
     student_id: str,
     receipt_file_key: str,
+    receipt_hash: str,
     sender_identifier: str,
-    amount_submitted: float,
-    student_note: Optional[str] = None
+    amount_submitted: Decimal,
+    student_note: Optional[str] = None,
 ) -> Payment:
-    stmt = select(Payment).where(Payment.id == payment_id, Payment.student_id == student_id)
-    res = await db.execute(stmt)
-    payment = res.scalar_one_or_none()
+    payment = await db.scalar(
+        select(Payment)
+        .where(Payment.id == payment_id, Payment.student_id == student_id)
+        .with_for_update()
+    )
     if not payment:
         raise HTTPException(status_code=404, detail="طلب الدفع غير موجود.")
 
-    prev_status = payment.status
+    validate_payment_transition(payment.status, "pending_review")
+    previous_status = payment.status
     payment.receipt_file_key = receipt_file_key
+    payment.receipt_hash = receipt_hash
     payment.sender_identifier = sender_identifier
     payment.amount_submitted = amount_submitted
     payment.student_note = student_note
     payment.status = "pending_review"
     payment.submitted_at = datetime.utcnow()
 
-    db.add(PaymentEvent(
-        payment_id=payment.id,
-        previous_status=prev_status,
-        new_status="pending_review",
-        actor_id=student_id,
-        comment="تم رفع إيصال التحويل وبانتظار مراجعة الإدارة"
-    ))
-
-    # Notification for student
-    db.add(Notification(
-        user_id=student_id,
-        title="تم استلام إيصال الدفع",
-        message=f"تم إرسال إيصال طلب الدفع {payment.reference_code} وجاري مراجعته من قبل الإدارة.",
-        type="payment"
-    ))
+    db.add(
+        PaymentEvent(
+            payment_id=payment.id,
+            previous_status=previous_status,
+            new_status="pending_review",
+            actor_id=student_id,
+            comment="تم رفع إيصال التحويل وبانتظار المراجعة.",
+        )
+    )
+    db.add(
+        Notification(
+            user_id=student_id,
+            title="تم استلام إيصال الدفع",
+            message=f"تم إرسال إيصال طلب الدفع {payment.reference_code} وجارٍ مراجعته من قبل الإدارة.",
+            type="payment",
+        )
+    )
 
     await db.commit()
     await db.refresh(payment)
     return payment
 
+
 async def review_payment_admin(
     db: AsyncSession,
     payment_id: str,
     reviewer_id: str,
-    action: str, # approve, reject, request_info
+    action: str,
     review_note: Optional[str] = None,
-    rejection_reason: Optional[str] = None
+    rejection_reason: Optional[str] = None,
 ) -> Payment:
-    stmt = select(Payment).where(Payment.id == payment_id)
-    res = await db.execute(stmt)
-    payment = res.scalar_one_or_none()
+    payment = await db.scalar(select(Payment).where(Payment.id == payment_id).with_for_update())
     if not payment:
         raise HTTPException(status_code=404, detail="طلب الدفع غير موجود.")
 
-    prev_status = payment.status
+    if payment.status == "approved" and action == "approve":
+        return payment
+    if payment.status == "rejected" and action == "reject":
+        return payment
+
+    target_status = {"approve": "approved", "reject": "rejected", "request_info": "more_info_required"}.get(action)
+    if not target_status:
+        raise HTTPException(status_code=400, detail="إجراء مراجعة غير معروف.")
+    validate_payment_transition(payment.status, target_status)
+
+    previous_status = payment.status
     payment.reviewer_id = reviewer_id
     payment.review_note = review_note
     payment.reviewed_at = datetime.utcnow()
 
     if action == "approve":
         payment.status = "approved"
-        
-        # Transactionally create or activate enrolment
-        stmt_enrol = select(Enrolment).where(
-            Enrolment.student_id == payment.student_id,
-            Enrolment.course_id == payment.course_id
-        )
-        res_enrol = await db.execute(stmt_enrol)
-        enrolment = res_enrol.scalar_one_or_none()
-
-        course_stmt = select(Course).where(Course.id == payment.course_id)
-        res_c = await db.execute(course_stmt)
-        course = res_c.scalar_one_or_none()
+        course = await db.scalar(select(Course).where(Course.id == payment.course_id))
         access_days = course.access_duration_days if course else 365
+
+        enrolment = await db.scalar(
+            select(Enrolment)
+            .where(
+                Enrolment.student_id == payment.student_id,
+                Enrolment.course_id == payment.course_id,
+            )
+            .with_for_update()
+        )
 
         if enrolment:
             enrolment.status = "active"
@@ -143,70 +206,79 @@ async def review_payment_admin(
                 access_expiry=datetime.utcnow() + timedelta(days=access_days),
                 payment_id=payment.id,
                 source="manual_payment",
-                approved_by_id=reviewer_id
+                approved_by_id=reviewer_id,
             )
             db.add(enrolment)
+            try:
+                await db.flush()
+            except IntegrityError as exc:
+                await db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="تعذر اعتماد الدفع بسبب تعارض متزامن في حالة الاشتراك.",
+                ) from exc
 
-        # Unlock Lesson 1 automatically
-        stmt_first_lesson = select(Lesson).join(Module).where(
-            Module.course_id == payment.course_id,
-            Module.order == 1,
-            Lesson.order == 1
-        )
-        res_l1 = await db.execute(stmt_first_lesson)
-        l1 = res_l1.scalar_one_or_none()
-        if l1:
-            lp_stmt = select(LessonProgress).where(
-                LessonProgress.student_id == payment.student_id,
-                LessonProgress.lesson_id == l1.id
+        first_lesson = await _first_published_lesson(db, payment.course_id)
+        if first_lesson:
+            lesson_progress = await db.scalar(
+                select(LessonProgress).where(
+                    LessonProgress.student_id == payment.student_id,
+                    LessonProgress.lesson_id == first_lesson.id,
+                )
             )
-            res_lp = await db.execute(lp_stmt)
-            lp = res_lp.scalar_one_or_none()
-            if not lp:
-                db.add(LessonProgress(
-                    student_id=payment.student_id,
-                    lesson_id=l1.id,
-                    status="available"
-                ))
+            if not lesson_progress:
+                db.add(
+                    LessonProgress(
+                        student_id=payment.student_id,
+                        lesson_id=first_lesson.id,
+                        status="available",
+                    )
+                )
+            elif lesson_progress.status == "locked":
+                lesson_progress.status = "available"
 
-        # Notification for student
-        db.add(Notification(
-            user_id=payment.student_id,
-            title="تم قبول طلب الدفع!",
-            message=f"تهانينا! تم تفعيل اشتراكك في كورس ({course.title if course else ''}) بنجاح.",
-            type="payment"
-        ))
+        db.add(
+            Notification(
+                user_id=payment.student_id,
+                title="تم قبول طلب الدفع",
+                message=f"تم تفعيل اشتراكك في كورس ({course.title if course else ''}) بنجاح.",
+                type="payment",
+            )
+        )
 
     elif action == "reject":
         payment.status = "rejected"
-        payment.rejection_reason = rejection_reason or "لم يتم التأكد من صحة التحويل."
-        
-        db.add(Notification(
-            user_id=payment.student_id,
-            title="رفض طلب الدفع",
-            message=f"عذراً، تعذر قبول طلب الدفع {payment.reference_code}. السبب: {payment.rejection_reason}",
-            type="payment"
-        ))
-
-    elif action == "request_info":
+        payment.rejection_reason = rejection_reason or "تعذر التحقق من صحة التحويل."
+        db.add(
+            Notification(
+                user_id=payment.student_id,
+                title="تم رفض طلب الدفع",
+                message=f"تم رفض طلب الدفع {payment.reference_code}. السبب: {payment.rejection_reason}",
+                type="payment",
+            )
+        )
+    else:
         payment.status = "more_info_required"
-        payment.review_note = review_note or "يرجى توضيح تفاصيل إضافية عن التحويل."
+        payment.review_note = review_note or "يرجى تزويدنا بتفاصيل إضافية عن التحويل."
 
-    db.add(PaymentEvent(
-        payment_id=payment.id,
-        previous_status=prev_status,
-        new_status=payment.status,
-        actor_id=reviewer_id,
-        comment=f"تم تغيير حالة طلب الدفع إلى {payment.status}. ملاحظة: {review_note or ''}"
-    ))
-
-    db.add(AuditLog(
-        user_id=reviewer_id,
-        action=f"PAYMENT_{action.upper()}",
-        entity_type="payments",
-        entity_id=payment.id,
-        details={"status": payment.status, "student_id": payment.student_id}
-    ))
+    db.add(
+        PaymentEvent(
+            payment_id=payment.id,
+            previous_status=previous_status,
+            new_status=payment.status,
+            actor_id=reviewer_id,
+            comment=review_note or "",
+        )
+    )
+    db.add(
+        AuditLog(
+            user_id=reviewer_id,
+            action=f"PAYMENT_{action.upper()}",
+            entity_type="payments",
+            entity_id=payment.id,
+            details={"status": payment.status, "student_id": payment.student_id},
+        )
+    )
 
     await db.commit()
     await db.refresh(payment)

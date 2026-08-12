@@ -4,13 +4,7 @@ test("Capture Student Dashboard Desktop and Mobile Screenshots", async ({ page }
   const loginRes = await page.request.post("/api/v1/auth/login", {
     data: { identifier: "01011111111", password: "StudentPass123!@#" }
   });
-  const auth = await loginRes.json();
-
-  await page.goto("/");
-  await page.evaluate((data) => {
-    localStorage.setItem("access_token", data.access_token);
-    localStorage.setItem("user_info", JSON.stringify(data.user));
-  }, auth);
+  expect(loginRes.status()).toBe(200);
 
   // Desktop Screenshot (1440px)
   await page.setViewportSize({ width: 1440, height: 900 });

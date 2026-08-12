@@ -55,17 +55,18 @@ async def get_dashboard_summary(
 
         total_course_lessons = 0
         completed_lessons_count = 0
-        next_lesson_slug = "variables-and-data-types"
+        next_lesson_slug = None
 
         if mod_ids:
             # Fetch published lessons
             stmt_lessons = (
                 select(Lesson)
+                .join(Module, Lesson.module_id == Module.id)
                 .where(
                     Lesson.module_id.in_(mod_ids),
                     Lesson.publishing_status == "published"
                 )
-                .order_by(Lesson.order)
+                .order_by(Module.order, Lesson.order)
             )
             res_lessons = await db.execute(stmt_lessons)
             lessons = res_lessons.scalars().all()
@@ -123,7 +124,7 @@ async def get_dashboard_summary(
             "progress_percentage": progress_percentage,
             "completed_lessons": completed_lessons_count,
             "total_lessons": total_course_lessons,
-            "next_lesson_slug": next_lesson_slug,
+            "next_lesson_slug": next_lesson_slug or "variables-and-data-types",
             "status": "active",
             "is_enrolled": True
         })

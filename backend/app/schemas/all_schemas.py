@@ -179,5 +179,7 @@ class QuizAttemptResultResponse(BaseModel):
     score: float
     percentage: Optional[float] = 0.0
     passed: bool
+    status: Optional[str] = "submitted"
+    submitted_at: Optional[Any] = None
     correct_count: Optional[int] = 0
     total_questions: Optional[int] = 0

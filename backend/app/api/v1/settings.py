@@ -8,9 +8,18 @@ from app.api.deps import require_roles
 
 router = APIRouter(prefix="/settings", tags=["Platform Settings"])
 
+# Explicit allowlist of keys safe for public consumption
+_PUBLIC_SETTINGS_KEYS = {
+    "platform_name", "platform_description", "support_phone",
+    "support_email", "social_facebook", "social_youtube",
+    "social_telegram", "social_whatsapp", "announcement_text",
+    "maintenance_mode", "registration_enabled", "payment_instructions",
+    "instapay_number", "vodafone_cash_number",
+}
+
 @router.get("")
 async def get_public_settings(db: AsyncSession = Depends(get_db)):
-    stmt = select(PlatformSettings)
+    stmt = select(PlatformSettings).where(PlatformSettings.key.in_(_PUBLIC_SETTINGS_KEYS))
     res = await db.execute(stmt)
     settings_rows = res.scalars().all()
 

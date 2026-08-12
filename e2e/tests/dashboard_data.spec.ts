@@ -1,86 +1,112 @@
-import { test, expect, request as pwRequest } from "@playwright/test";
+import { expect, request as pwRequest, test } from "@playwright/test";
+
+async function createReviewedPayment(
+  studentRequest: Awaited<ReturnType<typeof pwRequest.newContext>>,
+  adminRequest: Awaited<ReturnType<typeof pwRequest.newContext>>,
+  studentToken: string,
+  adminToken: string,
+  courseId: string,
+  senderIdentifier: string,
+) {
+  const orderResponse = await studentRequest.post("/api/v1/payments/order", {
+    data: { course_id: courseId, payment_method: "instapay" },
+    headers: { Authorization: `Bearer ${studentToken}` },
+  });
+  expect(orderResponse.ok()).toBeTruthy();
+  const order = await orderResponse.json();
+
+  const uploadResponse = await studentRequest.post("/api/v1/payments/upload-receipt", {
+    headers: { Authorization: `Bearer ${studentToken}` },
+    multipart: {
+      payment_id: order.id,
+      sender_identifier: senderIdentifier,
+      amount_submitted: "180",
+      file: {
+        name: "receipt.png",
+        mimeType: "image/png",
+        buffer: Buffer.concat([
+          Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+          Buffer.from(`e2e-receipt-${Date.now()}-${Math.random()}`),
+        ]),
+      },
+    },
+  });
+  expect(uploadResponse.ok()).toBeTruthy();
+
+  const reviewResponse = await adminRequest.post("/api/v1/payments/admin/review", {
+    data: {
+      payment_id: order.id,
+      action: "approve",
+      review_note: "E2E approval",
+    },
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  expect(reviewResponse.ok()).toBeTruthy();
+}
 
 test.describe("Student Dashboard Data Consistency E2E Audit", () => {
-
   test("Dashboard displays exact active course count, isolates demo course, and updates dynamically upon admin enrolment", async ({ page }) => {
-    // 1. Register a fresh student for idempotent test execution
+    const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000";
     const randPhone = `010${Math.floor(10000000 + Math.random() * 90000000)}`;
-    const regRes = await page.request.post("/api/v1/auth/register", {
+
+    const registerResponse = await page.request.post("/api/v1/auth/register", {
       data: {
         arabic_name: "طالب لوحة التحكم E2E",
         phone_number: randPhone,
         password: "StudentPass123!@#",
         password_confirm: "StudentPass123!@#",
-        grade_level: "first_secondary"
-      }
+        grade_level: "first_secondary",
+      },
     });
-    expect(regRes.status()).toBe(200);
-    const auth = await regRes.json();
+    expect(registerResponse.ok()).toBeTruthy();
+    const studentAuth = await registerResponse.json();
 
-    // Admin Token for activating enrolments using isolated request context to prevent cookie contamination
-    const adminContext = await pwRequest.newContext({ baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000" });
-    const adminLoginRes = await adminContext.post("/api/v1/auth/login", {
-      data: { identifier: "01001340533", password: "AdminPass123!@#" }
+    const adminRequest = await pwRequest.newContext({ baseURL });
+    const adminLoginResponse = await adminRequest.post("/api/v1/auth/login", {
+      data: { identifier: "01001340533", password: "AdminPass123!@#" },
     });
-    const adminToken = (await adminLoginRes.json()).access_token;
+    expect(adminLoginResponse.ok()).toBeTruthy();
+    const adminAuth = await adminLoginResponse.json();
 
-    // Get course 1 ID (python-first-secondary)
-    const coursesRes = await page.request.get("/api/v1/courses");
-    const courses = await coursesRes.json();
-    const course1 = courses.find((c: any) => c.slug === "python-first-secondary");
-    const course2 = courses.find((c: any) => c.slug === "web-second-secondary-demo");
+    const coursesResponse = await page.request.get("/api/v1/courses");
+    expect(coursesResponse.ok()).toBeTruthy();
+    const courses = await coursesResponse.json();
+    const course1 = courses.find((course: any) => course.slug === "python-first-secondary");
+    const course2 = courses.find((course: any) => course.slug === "web-second-secondary-demo");
+    expect(course1).toBeTruthy();
+    expect(course2).toBeTruthy();
 
-    // Activate course 1 for this student
-    const order1Res = await page.request.post("/api/v1/payments/order", {
-      data: { course_id: course1.id, payment_method: "instapay" },
-      headers: { Authorization: `Bearer ${auth.access_token}` }
-    });
-    const p1Id = (await order1Res.json()).id;
-    await adminContext.post("/api/v1/payments/admin/review", {
-      data: { payment_id: p1Id, action: "approve", review_note: "Initial activation" },
-      headers: { Authorization: `Bearer ${adminToken}` }
-    });
-
-    // 2. Set student session and load /dashboard
-    await page.goto("/");
-    await page.evaluate((data) => {
-      localStorage.setItem("access_token", data.access_token);
-      localStorage.setItem("user_info", JSON.stringify(data.user));
-    }, auth);
+    await createReviewedPayment(page.request, adminRequest, studentAuth.access_token, adminAuth.access_token, course1.id, randPhone);
 
     await page.goto("/dashboard");
-    await page.waitForLoadState("domcontentloaded");
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
 
-    // 3. Summary stats top card must display "1" enrolled course
-    const enrolledCountCard = page.locator('div').filter({ hasText: /^الكورسات المشترك بها$/ }).locator('..').locator('.text-2xl');
-    await expect(enrolledCountCard).toHaveText("1");
-
-    // 4. Exactly 1 active course card in "الكورسات المتاحة والمفعلة"
-    const activeSection = page.locator('div.space-y-6').filter({ has: page.locator('h2:has-text("الكورسات المتاحة والمفعلة")') });
-    const activeCards = activeSection.locator('h3');
-    await expect(activeCards).toHaveCount(1);
-
-    // 5. Unpurchased demo course is NOT shown as active, but displayed under "كورسات مقترحة"
-    await expect(page.locator('h2:has-text("كورسات مقترحة")')).toBeVisible();
-
-    // 6. Admin approves second course enrolment
-    const order2Res = await page.request.post("/api/v1/payments/order", {
-      data: { course_id: course2.id, payment_method: "instapay" },
-      headers: { Authorization: `Bearer ${auth.access_token}` }
+    const summaryAfterFirstResponse = await page.request.get("/api/v1/dashboard/summary", {
+      headers: { Authorization: `Bearer ${studentAuth.access_token}` },
     });
-    const p2Id = (await order2Res.json()).id;
+    expect(summaryAfterFirstResponse.ok()).toBeTruthy();
+    const summaryAfterFirst = await summaryAfterFirstResponse.json();
+    expect(summaryAfterFirst.active_enrolment_count).toBe(1);
 
-    await adminContext.post("/api/v1/payments/admin/review", {
-      data: { payment_id: p2Id, action: "approve", review_note: "Second activation" },
-      headers: { Authorization: `Bearer ${adminToken}` }
-    });
+    await expect(page.locator("body")).toContainText(course1.title);
+    await expect(page.getByRole("link", { name: "متابعة التعلم" })).toHaveCount(1);
+    await expect(page.locator("body")).toContainText("كورسات مقترحة");
 
-    // 7. Refresh student dashboard: count becomes 2 and 2 active course cards appear
+    await createReviewedPayment(page.request, adminRequest, studentAuth.access_token, adminAuth.access_token, course2.id, `${randPhone}-2`);
+
     await page.reload();
-    await page.waitForLoadState("domcontentloaded");
-    await expect(enrolledCountCard).toHaveText("2");
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
 
-    const activeCardsAfter = activeSection.locator('h3');
-    await expect(activeCardsAfter).toHaveCount(2);
+    const summaryAfterSecondResponse = await page.request.get("/api/v1/dashboard/summary", {
+      headers: { Authorization: `Bearer ${studentAuth.access_token}` },
+    });
+    expect(summaryAfterSecondResponse.ok()).toBeTruthy();
+    const summaryAfterSecond = await summaryAfterSecondResponse.json();
+    expect(summaryAfterSecond.active_enrolment_count).toBe(2);
+
+    await expect(page.locator("body")).toContainText(course2.title);
+    await expect(page.getByRole("link", { name: "متابعة التعلم" })).toHaveCount(2);
+
+    await adminRequest.dispose();
   });
 });

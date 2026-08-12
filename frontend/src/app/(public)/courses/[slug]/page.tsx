@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { fetchCurrentUser } from "@/lib/auth";
 import { BookOpen, CheckCircle, Lock, PlayCircle, FileCode, ShieldCheck, ChevronLeft, UserCheck, AlertCircle } from "lucide-react";
 
 interface Lesson {
@@ -54,13 +55,13 @@ export default function CourseDetailPage() {
     fetchCourseDetails();
   }, [slug]);
 
-  const handleEnroll = () => {
-    const token = localStorage.getItem("access_token");
-    if (!token) {
+  const handleEnroll = async () => {
+    const currentUser = await fetchCurrentUser();
+    if (!currentUser) {
       router.push("/login");
-    } else {
-      router.push("/dashboard/payments");
+      return;
     }
+    router.push("/dashboard/payments");
   };
 
   if (loading) {

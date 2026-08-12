@@ -1,5 +1,7 @@
 # 🌐 04. Environment Configuration & Matrix Report
 
+> Historical snapshot from Saturday, August 2, 2026. This file is not the current deployment authority and may describe pre-hardening defaults. For the active production/staging design and required secrets, use `docs/deployment-architecture.md` plus the current environment templates.
+
 **Audit Date**: 2026-08-02  
 **Branch**: `production-readiness-audit`  
 

@@ -1,139 +1,123 @@
 import datetime
+
+import redis
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
+from app.core.config import settings
+from app.services.execution_service import ExecutionService
+
 
 router = APIRouter(tags=["Health & Readiness"])
 
+
+async def _database_ready(db: AsyncSession) -> bool:
+    result = await db.execute(text("SELECT 1"))
+    return result.scalar() == 1
+
+
+def _redis_ready() -> bool:
+    try:
+        client = redis.Redis.from_url(settings.REDIS_URL, socket_timeout=2.0)
+        return bool(client.ping())
+    except Exception:
+        return False
+
+
 @router.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "Code Journey Academy API"}
+    return {"status": "alive", "service": "Code Journey Academy API"}
+
 
 @router.get("/ready")
 async def readiness_check(db: AsyncSession = Depends(get_db)):
-    try:
-        res = await db.execute(text("SELECT 1"))
-        db_status = "connected" if res.scalar() == 1 else "degraded"
-    except Exception as e:
-        db_status = f"disconnected: {str(e)}"
-        raise HTTPException(status_code=503, detail={"status": "not_ready", "database": db_status})
-
-    return {
-        "status": "ready",
-        "database": db_status,
-        "execution_sandbox": "online"
-    }
-
-@router.get("/health/detailed")
-async def detailed_health_check(db: AsyncSession = Depends(get_db)):
-    import redis
-    import httpx
-    from app.core.config import settings
-
-    status_report = {
-        "status": "healthy",
-        "database": "unknown",
-        "redis": "unknown",
-        "storage": "unknown"
-    }
-
-    # 1. Test PostgreSQL DB
-    try:
-        res = await db.execute(text("SELECT 1"))
-        if res.scalar() == 1:
-            status_report["database"] = "connected"
-        else:
-            status_report["database"] = "unresponsive"
-    except Exception as e:
-        status_report["database"] = f"error: {str(e)}"
-        status_report["status"] = "degraded"
-
-    # 2. Test Redis Cache & Queue
-    try:
-        r_client = redis.Redis.from_url(settings.REDIS_URL, socket_timeout=3.0)
-        if r_client.ping():
-            status_report["redis"] = "connected"
-        else:
-            status_report["redis"] = "unresponsive"
-    except Exception as e:
-        status_report["redis"] = f"error: {str(e)}"
-        status_report["status"] = "degraded"
-
-    # 3. Test Supabase Storage
-    try:
-        if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY:
-            async with httpx.AsyncClient(timeout=4.0) as client:
-                res = await client.get(
-                    f"{settings.SUPABASE_URL.rstrip('/')}/storage/v1/bucket/{settings.SUPABASE_STORAGE_BUCKET}",
-                    headers={
-                        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
-                        "apiKey": settings.SUPABASE_SERVICE_ROLE_KEY
-                    }
-                )
-                if res.status_code == 200:
-                    status_report["storage"] = "connected (supabase_private_bucket)"
-                else:
-                    status_report["storage"] = f"bucket_not_found: HTTP {res.status_code}"
-                    status_report["status"] = "degraded"
-        else:
-            status_report["storage"] = "local_fallback"
-    except Exception as e:
-        status_report["storage"] = f"error: {str(e)}"
-        status_report["status"] = "degraded"
-
-    return status_report
-
-@router.get("/status/public")
-async def public_status_page(db: AsyncSession = Depends(get_db)):
-    import redis
-    import time
-    from app.core.config import settings
-
-    start_time = time.time()
-
-    # 1. DB latency check
     db_ok = False
     try:
-        res = await db.execute(text("SELECT 1"))
-        db_ok = (res.scalar() == 1)
+        db_ok = await _database_ready(db)
     except Exception:
         db_ok = False
 
-    db_latency_ms = round((time.time() - start_time) * 1000, 2)
+    execution_health = await ExecutionService.check_execution_provider_health()
+    execution_required = settings.requires_isolated_code_execution()
+    execution_ok = (not execution_required) or execution_health["healthy"]
 
-    # 2. Redis check
-    redis_ok = False
-    try:
-        r = redis.Redis.from_url(settings.REDIS_URL, socket_timeout=2.0)
-        redis_ok = r.ping()
-    except Exception:
-        redis_ok = False
-
-    overall_operational = db_ok and redis_ok
+    if not db_ok or not execution_ok:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "not_ready",
+                "database": "ready" if db_ok else "unavailable",
+                "execution": "ready" if execution_ok else "unavailable",
+            },
+        )
 
     return {
+        "status": "ready",
+        "database": "ready",
+        "execution": "ready" if execution_health["healthy"] else "not_required",
+    }
+
+
+@router.get("/health/detailed")
+async def detailed_health_check(db: AsyncSession = Depends(get_db)):
+    try:
+        db_ok = await _database_ready(db)
+    except Exception:
+        db_ok = False
+
+    redis_ok = _redis_ready()
+    execution_health = await ExecutionService.check_execution_provider_health()
+    storage_ok = bool(settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY) or settings.is_development_like()
+
+    overall_ok = db_ok and redis_ok and (
+        execution_health["healthy"] or not settings.requires_isolated_code_execution()
+    )
+    return {
+        "status": "healthy" if overall_ok else "degraded",
+        "checks": {
+            "database": "connected" if db_ok else "unavailable",
+            "redis": "connected" if redis_ok else "unavailable",
+            "storage": "configured" if storage_ok else "unavailable",
+            "execution_provider": "connected" if execution_health["healthy"] else "unavailable",
+        },
+    }
+
+
+@router.get("/status/public")
+async def public_status_page(db: AsyncSession = Depends(get_db)):
+    try:
+        db_ok = await _database_ready(db)
+    except Exception:
+        db_ok = False
+
+    redis_ok = _redis_ready()
+    execution_health = await ExecutionService.check_execution_provider_health()
+    execution_required = settings.requires_isolated_code_execution()
+    execution_ok = execution_health["healthy"] if execution_required else True
+
+    overall_operational = db_ok and redis_ok and execution_ok
+    return {
         "platform_name": "كود بالعربي (Code Belaraby)",
-        "status": "operational" if overall_operational else "degraded_performance",
+        "status": "operational" if overall_operational else "degraded",
         "last_updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "services": [
             {
-                "name": "الواجهة البرمجية (API Services)",
-                "status": "operational" if overall_operational else "degraded",
-                "latency_ms": db_latency_ms
+                "name": "واجهة المنصة",
+                "status": "operational" if db_ok else "degraded",
             },
             {
-                "name": "محرر ومحرك التنفيذ (Execution Engine)",
-                "status": "operational" if not settings.ALLOW_LOCAL_RUNNER_IN_PROD else "disabled_in_staging",
-                "message": "تشغيل الأكواد معطل مؤقتاً لدواعي الأمان في بيئة التجربة" if not settings.ALLOW_LOCAL_RUNNER_IN_PROD else "جاهز"
+                "name": "محرك تشغيل الأكواد",
+                "status": "operational" if execution_ok else "degraded",
             },
             {
-                "name": "قاعدة البيانات (PostgreSQL Database)",
-                "status": "operational" if db_ok else "outage"
+                "name": "قاعدة البيانات",
+                "status": "operational" if db_ok else "degraded",
             },
             {
-                "name": "الذاكرة السريعة وطابور المهام (Redis Cache & Queue)",
-                "status": "operational" if redis_ok else "outage"
-            }
-        ]
+                "name": "الذاكرة المؤقتة والطوابير",
+                "status": "operational" if redis_ok else "degraded",
+            },
+        ],
     }
