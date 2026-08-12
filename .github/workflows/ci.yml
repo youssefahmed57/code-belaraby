@@ -32,7 +32,7 @@ jobs:
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.lock pip-audit
+          pip install -r requirements.lock -r requirements-dev.lock pip-audit
       - name: Run Alembic migrations
         run: alembic upgrade head
       - name: Run backend tests
@@ -110,8 +110,8 @@ jobs:
       SIGNED_URL_SECRET: ci_signed_url_secret_key_which_is_long_enough
       RECEIPT_SIGNING_SECRET: ci_receipt_signing_secret_which_is_long_enough
       VIDEO_SIGNING_SECRET: ci_video_signing_secret_which_is_long_enough__
-      DATABASE_URL: sqlite+aiosqlite:///./backend/ci-e2e.db
-      SYNC_DATABASE_URL: sqlite:///./backend/ci-e2e.db
+      DATABASE_URL: sqlite+aiosqlite:///./ci-e2e.db
+      SYNC_DATABASE_URL: sqlite:///./ci-e2e.db
       REDIS_URL: redis://localhost:6379/0
       ENVIRONMENT: test
       ALLOW_UNSAFE_LOCAL_CODE_EXECUTION: "true"
