@@ -14,13 +14,14 @@ async function createReviewedPayment(
   });
   expect(orderResponse.ok()).toBeTruthy();
   const order = await orderResponse.json();
+  const submittedAmount = String(order.amount_expected ?? "0");
 
   const uploadResponse = await studentRequest.post("/api/v1/payments/upload-receipt", {
     headers: { Authorization: `Bearer ${studentToken}` },
     multipart: {
       payment_id: order.id,
       sender_identifier: senderIdentifier,
-      amount_submitted: "180",
+      amount_submitted: submittedAmount,
       file: {
         name: "receipt.png",
         mimeType: "image/png",
